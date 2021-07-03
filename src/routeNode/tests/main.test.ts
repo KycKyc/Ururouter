@@ -412,6 +412,7 @@ describe('RouteNode', function () {
 
     it('should match paths with optional trailing slashes', function () {
         let rootNode = getRoutes();
+
         expect(rootNode.matchPath('/users/list/', { strictTrailingSlash: true })).toBeNull();
 
         expect(withoutMeta(rootNode.matchPath('/users/list', { strictTrailingSlash: false }))).toEqual({ name: 'users.list', params: {} });
@@ -543,7 +544,6 @@ describe('RouteNode', function () {
             params: {},
         });
 
-        console.debug(node.matchPath('/path/absolute'));
         expect(node.matchPath('/path/absolute')).toBeNull();
         expect(withoutMeta(node.matchPath('/absolute'))).toEqual({
             name: 'path.absolute',
@@ -808,7 +808,7 @@ describe('RouteNode', function () {
             expect(appNodes.matchPath('/user/orders/', { strictTrailingSlash: true })).toEqual(null);
         });
 
-        it('should match path witl lang prefix (ko-lang)', () => {
+        it('should match path with lang prefix (ko-lang)', () => {
             expect(appNodes.matchPath('/ko')).toEqual({
                 name: 'ko.default',
                 params: {},

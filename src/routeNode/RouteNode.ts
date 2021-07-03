@@ -1,4 +1,4 @@
-import { Path, URLParamsEncodingType } from 'path-parser';
+import { Path, URLParamsEncodingType } from 'pathParser';
 import { IOptions as QueryParamsOptions } from 'search-params';
 
 import { buildPathFromSegments, buildStateFromMatch, getMetaFromSegments, getPathFromSegments } from './helpers';
