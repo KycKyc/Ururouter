@@ -1,9 +1,8 @@
 import { Path, URLParamsEncodingType } from 'pathParser';
 import { IOptions as QueryParamsOptions } from 'search-params';
 
-import { buildPathFromSegments, buildStateFromMatch, getMetaFromSegments, getPathFromSegments } from './helpers';
+import { buildPathFromSegments, buildStateFromMatch, getMetaFromSegments, getPathFromSegments, sortChildrenFunc } from './helpers';
 import matchChildren from './matchChildren';
-import sortChildren from './sortChildren';
 
 export interface RouteDefinition {
     name: string;
@@ -161,9 +160,9 @@ export class RouteNode {
     }
 
     public sortChildren() {
-        if (this.children.length) {
-            sortChildren(this.children);
-        }
+        if (!this.children.length) return;
+        const originalChildren = this.children.slice(0);
+        this.children.sort(sortChildrenFunc(originalChildren));
     }
 
     public sortDescendants() {
