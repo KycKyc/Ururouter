@@ -1,24 +1,24 @@
 import { build } from 'search-params';
 import { BuildOptions, MatchResponse, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
 
-export const getMetaFromSegments = (segments: RouteNode[]): RouteNodeStateMeta => {
+export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
     let accName = '';
 
-    return segments.reduce<RouteNodeStateMeta>((meta, segment) => {
+    return nodes.reduce<RouteNodeStateMeta>((meta, node) => {
         const urlParams =
-            segment.parser?.urlParams.reduce<Record<string, any>>((params, p) => {
+            node.parser?.urlParams.reduce<Record<string, any>>((params, p) => {
                 params[p] = 'url';
                 return params;
             }, {}) ?? {};
 
         const allParams =
-            segment.parser?.queryParams.reduce<Record<string, any>>((params, p) => {
+            node.parser?.queryParams.reduce<Record<string, any>>((params, p) => {
                 params[p] = 'query';
                 return params;
             }, urlParams) ?? {};
 
-        if (segment.name !== undefined) {
-            accName = accName ? accName + '.' + segment.name : segment.name;
+        if (node.name !== undefined) {
+            accName = accName ? accName + '.' + node.name : node.name;
             meta[accName] = allParams;
         }
 
@@ -27,12 +27,12 @@ export const getMetaFromSegments = (segments: RouteNode[]): RouteNodeStateMeta =
 };
 
 export const buildStateFromMatch = (match: MatchResponse): RouteNodeState | null => {
-    if (!match || !match.segments || !match.segments.length) {
+    if (!match || !match.nodes || !match.nodes.length) {
         return null;
     }
 
-    const name = match.segments
-        .map((segment) => segment.name)
+    const name = match.nodes
+        .map((nade) => nade.name)
         .filter((name) => name)
         .join('.');
 
@@ -41,17 +41,17 @@ export const buildStateFromMatch = (match: MatchResponse): RouteNodeState | null
     return {
         name,
         params,
-        meta: getMetaFromSegments(match.segments),
+        meta: getMetaFromNodes(match.nodes),
     };
 };
 
-export const buildPathFromSegments = (segments: RouteNode[], params: Record<string, any> = {}, options: BuildOptions = {}) => {
+export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, any> = {}, options: BuildOptions = {}) => {
     const { queryParamsMode = 'default', trailingSlashMode = 'default' } = options;
     const searchParams: string[] = [];
     const nonSearchParams: string[] = [];
 
-    for (const segment of segments) {
-        const { parser } = segment;
+    for (const node of nodes) {
+        const { parser } = node;
 
         if (parser) {
             searchParams.push(...parser.queryParams);
@@ -79,16 +79,16 @@ export const buildPathFromSegments = (segments: RouteNode[], params: Record<stri
 
     const searchPart = build(searchParamsObject, options.queryParams);
 
-    const path = segments
-        .reduce<string>((path, segment) => {
-            const segmentPath =
-                segment.parser?.build(params, {
+    const path = nodes
+        .reduce<string>((path, node) => {
+            const nodePath =
+                node.parser?.build(params, {
                     ignoreSearch: true,
                     queryParams: options.queryParams,
                     urlParamsEncoding: options.urlParamsEncoding,
                 }) ?? '';
 
-            return segment.absolute ? segmentPath : path + segmentPath;
+            return node.absolute ? nodePath : path + nodePath;
         }, '')
         // remove repeated slashes
         .replace(/\/\/{1,}/g, '/');
@@ -104,7 +104,7 @@ export const buildPathFromSegments = (segments: RouteNode[], params: Record<stri
     return finalPath + (searchPart ? '?' + searchPart : '');
 };
 
-export const getPathFromSegments = (segments: RouteNode[]): string | null => (segments ? segments.map((segment) => segment.path).join('') : null);
+export const getPathFromNodes = (nodes: RouteNode[]): string | null => (nodes ? nodes.map((node) => node.path).join('') : null);
 
 export const sortChildrenFunc =
     (originalChildren: RouteNode[]) =>

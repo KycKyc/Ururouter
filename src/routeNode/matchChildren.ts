@@ -17,30 +17,33 @@ const matchChildren = (
 
     const isRoot = nodes.length === 1 && nodes[0].name === '';
     for (const child of nodes) {
-        // Partially match path
         let match: TestMatch | null = null;
         let remainingPath;
-        let segment = pathSegment;
+        // let _pathSegment = pathSegment;
         let trailingSlashMode: tSM = !child.children.length ? (strictTrailingSlash ? 'default' : 'never') : 'default';
         //                               ↑ No childrens
 
-        if (consumedBefore === '/' && child.path[0] === '/') {
-            // when we encounter repeating slashes we add the slash
-            // back to the URL to make it de facto pathless
-            segment = '/' + pathSegment;
+        // When we encounter repeating slashes we add the slash back to the URL
+        if (consumedBefore === '/') {
+            if (child.path[0] === '/' && pathSegment[0] !== '/') {
+                pathSegment = '/' + pathSegment;
+            } else if (child.path[0] !== '/' && pathSegment[0] === '/') {
+                pathSegment = pathSegment.slice(1);
+            }
         }
 
-        match = child.parser!.partialTest(segment, {
+        // Partially match remaining path segment
+        match = child.parser!.partialTest(pathSegment, {
             delimited: strongMatching,
             caseSensitive,
             queryParams: options.queryParams,
             urlParamsEncoding: options.urlParamsEncoding,
         });
 
-        // Match was't fount withdraw from that Node tree
+        // Match was't fount withdraw from that Node
         if (match == null) continue;
 
-        // Remove consumed segment from path
+        // Getting consumed segment from path
         let consumedPath = child.parser!.build(match, {
             ignoreSearch: true,
             urlParamsEncoding: options.urlParamsEncoding,
@@ -48,12 +51,11 @@ const matchChildren = (
         });
 
         // console.debug(`segment: '${segment}', should consume: '${consumedPath}', mode: ${trailingSlashMode}`);
-        // Can't create a regexp from the path because it might contain a
-        // regexp character.
-        if (segment.toLowerCase().indexOf(consumedPath.toLowerCase()) === 0) {
-            remainingPath = segment.slice(consumedPath.length);
+        // Can't create a regexp from the path because it might contain a regexp character.
+        if (pathSegment.toLowerCase().indexOf(consumedPath.toLowerCase()) === 0) {
+            remainingPath = pathSegment.slice(consumedPath.length);
         } else {
-            remainingPath = segment;
+            remainingPath = pathSegment;
         }
 
         const { querystring } = omit(getSearch(remainingPath), child.parser!.queryParams, options.queryParams);
@@ -66,7 +68,7 @@ const matchChildren = (
 
         remainingPath += querystring ? `?${querystring}` : '';
 
-        currentMatch.segments.push(child);
+        currentMatch.nodes.push(child);
         Object.keys(match).forEach((param) => (currentMatch.params[param] = match![param]));
 
         if (!isRoot && !remainingPath.length) {

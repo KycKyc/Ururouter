@@ -1,7 +1,7 @@
 import { Path, URLParamsEncodingType } from 'pathParser';
 import { IOptions as QueryParamsOptions } from 'search-params';
 
-import { buildPathFromSegments, buildStateFromMatch, getMetaFromSegments, getPathFromSegments, sortChildrenFunc } from './helpers';
+import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortChildrenFunc } from './helpers';
 import matchChildren from './matchChildren';
 
 export interface RouteDefinition {
@@ -34,7 +34,7 @@ export interface MatchOptions {
 export type { QueryParamsOptions };
 
 export interface MatchResponse {
-    segments: RouteNode[];
+    nodes: RouteNode[];
     params: Record<string, any>;
 }
 
@@ -85,8 +85,14 @@ export class RouteNode {
         return this;
     }
 
-    public getParentSegments(segments: RouteNode[] = []): RouteNode[] {
-        return this.parent && this.parent.parser ? this.parent.getParentSegments(segments.concat(this.parent)) : segments.reverse();
+    private checkParents() {
+        if (this.absolute && this.hasParentsParams()) {
+            throw new Error('[RouteNode] A RouteNode with an abolute path cannot have parents with route parameters');
+        }
+    }
+
+    public getParentNodes(nodes: RouteNode[] = []): RouteNode[] {
+        return this.parent && this.parent.parser ? this.parent.getParentNodes(nodes.concat(this.parent)) : nodes.reverse();
     }
 
     public setParent(parent: RouteNode) {
@@ -127,7 +133,7 @@ export class RouteNode {
             });
 
             const fullName = routeNode
-                .getParentSegments([routeNode])
+                .getParentNodes([routeNode])
                 .map((_) => _.name)
                 .join('.');
 
@@ -147,82 +153,6 @@ export class RouteNode {
     public addNode(name: string, path: string) {
         this.add(new RouteNode(name, path));
         return this;
-    }
-
-    public getPath(routeName: string): string | null {
-        const segmentsByName = this.getSegmentsByName(routeName);
-
-        return segmentsByName ? getPathFromSegments(segmentsByName) : null;
-    }
-
-    public getNonAbsoluteChildren(): RouteNode[] {
-        return this.children.filter((child) => !child.absolute);
-    }
-
-    public sortChildren() {
-        if (!this.children.length) return;
-        const originalChildren = this.children.slice(0);
-        this.children.sort(sortChildrenFunc(originalChildren));
-    }
-
-    public sortDescendants() {
-        this.sortChildren();
-        this.children.forEach((child) => child.sortDescendants());
-    }
-
-    public buildPath(routeName: string, params: Record<string, any> = {}, options: BuildOptions = {}): string {
-        const segments = this.getSegmentsByName(routeName);
-
-        if (!segments) {
-            throw new Error("[route-node][buildPath] '{routeName}' is not defined");
-        }
-
-        return buildPathFromSegments(segments, params, options);
-    }
-
-    public buildState(name: string, params: Record<string, any> = {}): RouteNodeState | null {
-        const segments = this.getSegmentsByName(name);
-
-        if (!segments || !segments.length) {
-            return null;
-        }
-
-        return {
-            name,
-            params,
-            meta: getMetaFromSegments(segments),
-        };
-    }
-
-    public matchPath(path: string, options: MatchOptions = {}): RouteNodeState | null {
-        if (path === '' && !options.strictTrailingSlash) {
-            path = '/';
-        }
-
-        const match = this.getSegmentsMatchingPath(path, options);
-
-        if (!match) {
-            return null;
-        }
-
-        const matchedSegments = match.segments;
-
-        if (matchedSegments[0].absolute) {
-            const firstSegmentParams = matchedSegments[0].getParentSegments();
-
-            matchedSegments.reverse();
-            matchedSegments.push(...firstSegmentParams);
-            matchedSegments.reverse();
-        }
-
-        const lastSegment = matchedSegments[matchedSegments.length - 1];
-        const lastSegmentSlashChild = lastSegment.findSlashChild();
-
-        if (lastSegmentSlashChild) {
-            matchedSegments.push(lastSegmentSlashChild);
-        }
-
-        return buildStateFromMatch(match);
     }
 
     private addRouteNode(route: RouteNode, sort: boolean = true): this {
@@ -246,10 +176,10 @@ export class RouteNode {
             }
         } else {
             // Locate parent node
-            const segments = this.getSegmentsByName(names.slice(0, -1).join('.'));
-            if (segments) {
+            const nodes = this.getNodesByName(names.slice(0, -1).join('.'));
+            if (nodes) {
                 route.name = names[names.length - 1];
-                segments[segments.length - 1].add(route);
+                nodes[nodes.length - 1].add(route);
             } else {
                 throw new Error(`Could not add route named '${route.name}', parent is missing.`);
             }
@@ -258,10 +188,49 @@ export class RouteNode {
         return this;
     }
 
-    private checkParents() {
-        if (this.absolute && this.hasParentsParams()) {
-            throw new Error('[RouteNode] A RouteNode with an abolute path cannot have parents with route parameters');
+    public getPath(routeName: string): string | null {
+        const nodesByName = this.getNodesByName(routeName);
+
+        return nodesByName ? getPathFromNodes(nodesByName) : null;
+    }
+
+    public getNonAbsoluteChildren(): RouteNode[] {
+        return this.children.filter((child) => !child.absolute);
+    }
+
+    public sortChildren() {
+        if (!this.children.length) return;
+        const originalChildren = this.children.slice(0);
+        this.children.sort(sortChildrenFunc(originalChildren));
+    }
+
+    public sortDescendants() {
+        this.sortChildren();
+        this.children.forEach((child) => child.sortDescendants());
+    }
+
+    public buildPath(routeName: string, params: Record<string, any> = {}, options: BuildOptions = {}): string {
+        const nodes = this.getNodesByName(routeName);
+
+        if (!nodes) {
+            throw new Error("[route-node][buildPath] '{routeName}' is not defined");
         }
+
+        return buildPathFromNodes(nodes, params, options);
+    }
+
+    public buildState(name: string, params: Record<string, any> = {}): RouteNodeState | null {
+        const nodes = this.getNodesByName(name);
+
+        if (!nodes || !nodes.length) {
+            return null;
+        }
+
+        return {
+            name,
+            params,
+            meta: getMetaFromNodes(nodes),
+        };
     }
 
     private hasParentsParams(): boolean {
@@ -282,48 +251,89 @@ export class RouteNode {
         );
     }
 
+    /**
+     * Getting the last child with slash or question mark at the end.
+     * Used in `matchPath`.
+     * When we find a Node and this node is having a child, like `/`
+     *
+     * As example:
+     * Node `/ko`
+     *    Subnode: `/`
+     *
+     * @returns RouteNode
+     */
     private findSlashChild(): RouteNode | undefined {
         const slashChildren = this.getNonAbsoluteChildren().filter((child) => child.parser && /^\/(\?|$)/.test(child.parser.path));
 
         return slashChildren[0];
     }
 
-    private getSegmentsByName(routeName: string): RouteNode[] | null {
-        const findSegmentByName = (name: string, routes: RouteNode[]) => {
+    private getNodesByName(routeName: string): RouteNode[] | null {
+        const findNodeByName = (name: string, routes: RouteNode[]) => {
             const filteredRoutes = routes.filter((r) => r.name === name);
             return filteredRoutes.length ? filteredRoutes[0] : undefined;
         };
 
-        const segments: RouteNode[] = [];
+        const nodes: RouteNode[] = [];
         let routes = this.parser ? [this] : this.children;
         const names = (this.parser ? [''] : []).concat(routeName.split('.'));
 
         const matched = names.every((name) => {
-            const segment = findSegmentByName(name, routes);
-            if (segment) {
-                routes = segment.children;
-                segments.push(segment);
+            const node = findNodeByName(name, routes);
+            if (node) {
+                routes = node.children;
+                nodes.push(node);
                 return true;
             }
 
             return false;
         });
 
-        return matched ? segments : null;
+        return matched ? nodes : null;
     }
 
-    private getSegmentsMatchingPath(path: string, options: MatchOptions): MatchResponse | null {
+    public matchPath(path: string, options: MatchOptions = {}): RouteNodeState | null {
+        if (path === '' && !options.strictTrailingSlash) {
+            path = '/';
+        }
+
+        const match = this.getNodesMatchingPath(path, options);
+
+        if (!match) {
+            return null;
+        }
+
+        const matchedNodes = match.nodes;
+
+        // if match was absolute node.
+        if (matchedNodes[0].absolute) {
+            const nodeParents = matchedNodes[0].getParentNodes();
+
+            matchedNodes.splice(0, 0, ...nodeParents);
+        }
+
+        const lastNode = matchedNodes[matchedNodes.length - 1];
+        const lastNodeSlashChild = lastNode.findSlashChild();
+
+        if (lastNodeSlashChild) {
+            matchedNodes.push(lastNodeSlashChild);
+        }
+
+        return buildStateFromMatch(match);
+    }
+
+    private getNodesMatchingPath(path: string, options: MatchOptions): MatchResponse | null {
         const topLevelNodes = this.parser ? [this] : this.children;
         const startingNodes = topLevelNodes.reduce<RouteNode[]>((nodes, node) => nodes.concat(node, node.findAbsoluteChildren()), []);
 
-        const currentMatch = {
-            segments: [],
+        const currentMatch: MatchResponse = {
+            nodes: [],
             params: {},
         };
 
         const finalMatch = matchChildren(startingNodes, path, currentMatch, options);
 
-        if (finalMatch && finalMatch.segments.length === 1 && finalMatch.segments[0].name === '') {
+        if (finalMatch && finalMatch.nodes.length === 1 && finalMatch.nodes[0].name === '') {
             return null;
         }
 
