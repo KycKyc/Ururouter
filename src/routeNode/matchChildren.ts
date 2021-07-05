@@ -8,7 +8,7 @@ const getSearch = (path: string): string => path.split('?')[1] || '';
 
 const matchChildren = (
     nodes: RouteNode[],
-    pathSegment: string,
+    remainingPath: string,
     currentMatch: MatchResponse,
     options: MatchOptions = {},
     consumedBefore?: string
@@ -18,22 +18,23 @@ const matchChildren = (
     const isRoot = nodes.length === 1 && nodes[0].name === '';
     for (const child of nodes) {
         let match: TestMatch | null = null;
-        let remainingPath;
-        // let _pathSegment = pathSegment;
         let trailingSlashMode: tSM = !child.children.length ? (strictTrailingSlash ? 'default' : 'never') : 'default';
         //                               ↑ No childrens
 
-        // When we encounter repeating slashes we add the slash back to the URL
+        // When we encounter repeating slashes we add the slash back to the remainingPath, or remove it from remainingPath
+        // Example of nodes:
+        // should add: `/` -> `/users'
+        // should remove: `/` ->'orders'
         if (consumedBefore === '/') {
-            if (child.path[0] === '/' && pathSegment[0] !== '/') {
-                pathSegment = '/' + pathSegment;
-            } else if (child.path[0] !== '/' && pathSegment[0] === '/') {
-                pathSegment = pathSegment.slice(1);
+            if (child.path[0] === '/' && remainingPath[0] !== '/') {
+                remainingPath = '/' + remainingPath;
+            } else if (child.path[0] !== '/' && remainingPath[0] === '/') {
+                remainingPath = remainingPath.slice(1);
             }
         }
 
         // Partially match remaining path segment
-        match = child.parser!.partialTest(pathSegment, {
+        match = child.parser!.partialTest(remainingPath, {
             delimited: strongMatching,
             caseSensitive,
             queryParams: options.queryParams,
@@ -50,12 +51,9 @@ const matchChildren = (
             trailingSlashMode,
         });
 
-        // console.debug(`segment: '${segment}', should consume: '${consumedPath}', mode: ${trailingSlashMode}`);
         // Can't create a regexp from the path because it might contain a regexp character.
-        if (pathSegment.toLowerCase().indexOf(consumedPath.toLowerCase()) === 0) {
-            remainingPath = pathSegment.slice(consumedPath.length);
-        } else {
-            remainingPath = pathSegment;
+        if (remainingPath.toLowerCase().indexOf(consumedPath.toLowerCase()) === 0) {
+            remainingPath = remainingPath.slice(consumedPath.length);
         }
 
         const { querystring } = omit(getSearch(remainingPath), child.parser!.queryParams, options.queryParams);
