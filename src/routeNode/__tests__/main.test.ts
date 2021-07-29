@@ -33,9 +33,9 @@ describe('RouteNode', function () {
         expect(node.children.length).toBe(2);
     });
 
-    it('should callback for each route from a POJO', function () {
-        const routeA = { name: 'home', path: '/home', extra: 'extra' };
-        const routeB = { name: 'profile', path: '/profile', extra: 'extra' };
+    it('should callback for each route', function () {
+        const routeA = { name: 'home', path: '/home', extra: { param: 'extra' } };
+        const routeB = { name: 'profile', path: '/profile', extra: { param: 'extra' } };
 
         const routes = [routeA, routeB];
         let node = new RouteNode();
@@ -43,8 +43,8 @@ describe('RouteNode', function () {
 
         node.add(routes, function (route) {
             i = i + 1;
-            if (i === 1) expect(route).toEqual(routeA);
-            if (i === 2) expect(route).toEqual(routeB);
+            if (i === 1) expect(route).toMatchObject(routeA);
+            if (i === 2) expect(route).toMatchObject(routeB);
         });
 
         expect(i).not.toBe(0);
@@ -54,8 +54,8 @@ describe('RouteNode', function () {
         node = new RouteNode('', '', routes, {
             onAdd: (route) => {
                 i = i + 1;
-                if (i === 1) expect(route).toEqual(routeA);
-                if (i === 2) expect(route).toEqual(routeB);
+                if (i === 1) expect(route).toMatchObject(routeA);
+                if (i === 2) expect(route).toMatchObject(routeB);
             },
         });
 
