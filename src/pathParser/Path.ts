@@ -54,7 +54,7 @@ export interface PathOptions {
      *      (sub-delimiters: `+`, `:`, `'`, `!`, `,`, `;`, `'*'`).
      *   - `'uriComponent'`: use `encodeURIComponent` and `decodeURIComponent`
      *      for encoding and decoding URL parameters.
-     *   - `'uri'`: use `encodeURI` and `decodeURI for encoding amd decoding
+     *   - `'uri'`: use `encodeURI` and `decodeURI for encoding and decoding
      *      URL parameters.
      *   - `'none'`: no encoding or decoding is performed
      *   - `'legacy'`: the approach for version 5.x and below (not recoomended)
