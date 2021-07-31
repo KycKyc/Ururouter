@@ -5,6 +5,11 @@ export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
     let accName = '';
 
     return nodes.reduce<RouteNodeStateMeta>((meta, node) => {
+        if (!node.parser) {
+            return meta;
+        }
+
+        //TODO: we already checking presense of parser, do we need fallbacks ?
         const urlParams =
             node.parser?.urlParams.reduce<Record<string, any>>((params, p) => {
                 params[p] = 'url';

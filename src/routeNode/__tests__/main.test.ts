@@ -1,4 +1,4 @@
-import { RouteNode } from '../index';
+import { RouteNode, createNode } from '../index';
 
 function withoutMeta(obj: Record<string, any> | null) {
     if (!obj) {
@@ -20,27 +20,29 @@ describe('RouteNode', function () {
     it('should throw an error when RouteNode is not used as a constructor', function () {
         expect(function () {
             // @ts-ignore
-            RouteNode('', '', [{ name: 'home' }]);
+            RouteNode({ children: [{ name: 'home' }] });
         }).toThrow();
     });
 
     it('should instanciate a RouteNode object from plain objects', function () {
-        const node = new RouteNode('', '', [
-            { name: 'home', path: '/home' },
-            { name: 'profile', path: '/profile' },
-        ]);
+        const node = createNode({
+            children: [
+                { name: 'home', path: '/home' },
+                { name: 'profile', path: '/profile' },
+            ],
+        });
 
         expect(node.children.length).toBe(2);
     });
 
     it('should callback for each route', function () {
-        const routeA = { name: 'home', path: '/home', extra: { param: 'extra' } };
-        const routeB = { name: 'profile', path: '/profile', extra: { param: 'extra' } };
+        const routeA = { name: 'home', path: '/home', extra: 'extra' };
+        const routeB = { name: 'profile', path: '/profile', extra: 'extra' };
 
         const routes = [routeA, routeB];
         let node = new RouteNode();
-        let i = 0;
 
+        let i = 0;
         node.add(routes, function (route) {
             i = i + 1;
             if (i === 1) expect(route).toMatchObject(routeA);
@@ -51,11 +53,14 @@ describe('RouteNode', function () {
 
         i = 0;
 
-        node = new RouteNode('', '', routes, {
-            onAdd: (route) => {
-                i = i + 1;
-                if (i === 1) expect(route).toMatchObject(routeA);
-                if (i === 2) expect(route).toMatchObject(routeB);
+        node = createNode({
+            children: routes,
+            options: {
+                onAdd: (route) => {
+                    i = i + 1;
+                    if (i === 1) expect(route).toMatchObject(routeA);
+                    if (i === 2) expect(route).toMatchObject(routeB);
+                },
             },
         });
 
@@ -72,8 +77,11 @@ describe('RouteNode', function () {
             })),
         }));
 
-        new RouteNode('', '', routes, {
-            finalSort: true,
+        createNode({
+            children: routes,
+            options: {
+                finalSort: true,
+            },
         });
         // No assertion here, if final sort functionality is broken
         // the test will exceed the 2s timeout and fail
@@ -82,17 +90,17 @@ describe('RouteNode', function () {
     it('should throw an error when trying to instanciate a RouteNode object with plain objects missing `name` or `path` properties', function () {
         expect(function () {
             // @ts-ignore
-            new RouteNode('', '', [{ name: 'home' }]);
+            new RouteNode({ children: [{ name: 'home' }] });
         }).toThrow();
 
         expect(function () {
             // @ts-ignore
-            new RouteNode('', '', [{ path: '/profile' }]);
+            new RouteNode({ children: [{ path: '/profile' }] });
         }).toThrow();
     });
 
     it('should throw an error when trying to add a node which is not an instance of RouteNode or Object', function () {
-        const rootNode = new RouteNode('', '');
+        const rootNode = new RouteNode();
         expect(function () {
             // @ts-ignore
             rootNode.add('users');
@@ -100,7 +108,7 @@ describe('RouteNode', function () {
     });
 
     it('should throw an error when trying to add a route to a node with an already existing alias or path', function () {
-        const root = new RouteNode('', '', [{ name: 'home', path: '/home' }]);
+        const root = new RouteNode({ children: [{ name: 'home', path: '/home' }] });
 
         expect(function () {
             root.add({ name: 'home', path: '/profile' });
@@ -120,14 +128,14 @@ describe('RouteNode', function () {
     });
 
     it("should throw an error when trying to add a route which parent doesn't exist", function () {
-        const root = new RouteNode('', '', [{ name: 'home', path: '/home' }]);
+        const root = new RouteNode({ children: [{ name: 'home', path: '/home' }] });
         expect(function () {
             root.add({ name: 'nested.route', path: '/route' });
         }).toThrow();
     });
 
     it('should instanciate a RouteNode object from RouteNode objects', function () {
-        const node = new RouteNode('', '', [new RouteNode('home', '/home'), new RouteNode('profile', '/profile')]);
+        const node = new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' }), new RouteNode({ name: 'profile', path: '/profile' })] });
 
         expect(node.children.length).toBe(2);
     });
@@ -205,9 +213,15 @@ describe('RouteNode', function () {
     });
 
     it('should match and build paths with nested query parameters', function () {
-        const node = new RouteNode('', '', [
-            new RouteNode('grandParent', '/grand-parent?nickname', [new RouteNode('parent', '/parent?name', [new RouteNode('child', '/child?age')])]),
-        ]);
+        const node = new RouteNode({
+            children: [
+                new RouteNode({
+                    name: 'grandParent',
+                    path: '/grand-parent?nickname',
+                    children: [new RouteNode({ name: 'parent', path: '/parent?name', children: [new RouteNode({ name: 'child', path: '/child?age' })] })],
+                }),
+            ],
+        });
 
         // Building
         expect(node.buildPath('grandParent', { nickname: 'gran' })).toBe('/grand-parent?nickname=gran');
@@ -324,7 +338,11 @@ describe('RouteNode', function () {
     });
 
     it('should work on a tree without a root node', function () {
-        const usersNode = new RouteNode('users', '/users', [new RouteNode('list', '/list'), new RouteNode('view', '/view/:id')]);
+        const usersNode = new RouteNode({
+            name: 'users',
+            path: '/users',
+            children: [new RouteNode({ name: 'list', path: '/list' }), new RouteNode({ name: 'view', path: '/view/:id' })],
+        });
 
         expect(withoutMeta(usersNode.matchPath('/users/view/1'))).toEqual({
             name: 'users.view',
@@ -338,7 +356,10 @@ describe('RouteNode', function () {
     });
 
     it('should be able to add deep nodes', function () {
-        const rootNode = new RouteNode('', '').addNode('users', '/users').addNode('users.view', '/view/:id').addNode('users.list', '/list');
+        const rootNode = new RouteNode()
+            .add({ name: 'users', path: '/users' })
+            .add({ name: 'users.view', path: '/view/:id' })
+            .add({ name: 'users.list', path: '/list' });
 
         expect(rootNode.buildPath('users.view', { id: 1 }, { queryParamsMode: 'strict' })).toBe('/users/view/1');
 
@@ -346,18 +367,18 @@ describe('RouteNode', function () {
     });
 
     it('should sort paths by length', function () {
-        const rootNode = new RouteNode('', '')
-            .addNode('personList', '/persons/')
-            .addNode('personDetail', '/persons/:personId')
-            .addNode('section', '/section/:id?a')
-            .addNode('index', '/?queryparamOfexceptionalLength')
-            .addNode('id', '/:id?rrrr')
-            .addNode('abo', '/abo')
-            .addNode('about', '/about?hello')
-            .addNode('users', '/users-tab')
-            .addNode('user', '/users/:id')
-            .addNode('postNew', '/blogs/:blogId/posts/new')
-            .addNode('postDetail', '/blogs/:blogId/posts/:postId');
+        const rootNode = new RouteNode()
+            .add({ name: 'personList', path: '/persons/' })
+            .add({ name: 'personDetail', path: '/persons/:personId' })
+            .add({ name: 'section', path: '/section/:id?a' })
+            .add({ name: 'index', path: '/?queryparamOfexceptionalLength' })
+            .add({ name: 'id', path: '/:id?rrrr' })
+            .add({ name: 'abo', path: '/abo' })
+            .add({ name: 'about', path: '/about?hello' })
+            .add({ name: 'users', path: '/users-tab' })
+            .add({ name: 'user', path: '/users/:id' })
+            .add({ name: 'postNew', path: '/blogs/:blogId/posts/new' })
+            .add({ name: 'postDetail', path: '/blogs/:blogId/posts/:postId' });
 
         expect(withoutMeta(rootNode.matchPath('/'))).toEqual({
             name: 'index',
@@ -441,7 +462,7 @@ describe('RouteNode', function () {
     });
 
     it('should match paths with optional trailing slashes and a non-empty root node', function () {
-        const rootNode = new RouteNode('', '?c&d', [new RouteNode('a', '/')]);
+        const rootNode = new RouteNode({ path: '?c&d', children: [new RouteNode({ name: 'a', path: '/' })] });
 
         const state = { name: 'a', params: {} };
 
@@ -453,9 +474,10 @@ describe('RouteNode', function () {
     });
 
     it('should support query parameters with square brackets', function () {
-        const node = new RouteNode('', '', [new RouteNode('route', '/route?arr', [new RouteNode('deep', '/deep?arr2')])]);
+        const node = new RouteNode({
+            children: [new RouteNode({ name: 'route', path: '/route?arr', children: [new RouteNode({ name: 'deep', path: '/deep?arr2' })] })],
+        });
 
-        // node.buildPath('route.deep', { arr: [1, 2], arr2: [3] })).toBe('/route/deep?arr=1&arr=2&arr2=3');
         expect(withoutMeta(node.matchPath('/route/deep?arr=1&arr=2&arr2=3&arr2=4'))).toEqual({
             name: 'route.deep',
             params: { arr: ['1', '2'], arr2: ['3', '4'] },
@@ -463,7 +485,7 @@ describe('RouteNode', function () {
     });
 
     it('should support query parameters in the root node', function () {
-        const node = new RouteNode('', '?a', [new RouteNode('route', '/path?b')]);
+        const node = new RouteNode({ path: '?a', children: [new RouteNode({ name: 'route', path: '/path?b' })] });
         expect(node.matchPath('/path?a=1&b=2')).toEqual({
             meta: {
                 '': { a: 'query' },
@@ -496,7 +518,7 @@ describe('RouteNode', function () {
     });
 
     it('should be able to modify a path', function () {
-        const node = new RouteNode('', '', [new RouteNode('route', '/path')]);
+        const node = new RouteNode({ children: [new RouteNode({ name: 'route', path: '/path' })] });
 
         expect(node.buildPath('route')).toBe('/path');
         expect(node.buildPath('route', { param: '1' })).toBe('/path');
@@ -505,7 +527,7 @@ describe('RouteNode', function () {
     });
 
     it('should serialise extra search parameters', function () {
-        const node = new RouteNode('', '', [new RouteNode('route', '/path')]);
+        const node = new RouteNode({ children: [new RouteNode({ name: 'route', path: '/path' })] });
 
         expect(
             withoutMeta(
@@ -521,23 +543,35 @@ describe('RouteNode', function () {
 
     it('should throw an error when adding an absolute path below nodes with params', () => {
         function createNode() {
-            return new RouteNode('', '', [new RouteNode('path', '/path/:path', [new RouteNode('absolute', '~/absolute')])]);
+            return new RouteNode({
+                children: [new RouteNode({ name: 'path', path: '/path/:path', children: [new RouteNode({ name: 'absolute', path: '~/absolute' })] })],
+            });
         }
 
         expect(createNode).toThrow();
     });
 
     it('should build absolute paths', function () {
-        const node = new RouteNode('', '', [new RouteNode('path', '/path', [new RouteNode('relative', '/relative'), new RouteNode('absolute', '~/absolute')])]);
+        const node = new RouteNode({
+            children: [
+                new RouteNode({
+                    name: 'path',
+                    path: '/path',
+                    children: [new RouteNode({ name: 'relative', path: '/relative' }), new RouteNode({ name: 'absolute', path: '~/absolute' })],
+                }),
+            ],
+        });
 
         expect(node.buildPath('path.relative')).toBe('/path/relative');
         expect(node.buildPath('path.absolute')).toBe('/absolute');
     });
 
     it('should match absolute paths', function () {
-        const absolute = new RouteNode('absolute', '~/absolute');
+        const absolute = new RouteNode({ name: 'absolute', path: '~/absolute' });
 
-        const node = new RouteNode('', '', [new RouteNode('path', '/path', [new RouteNode('relative', '/relative'), absolute])]);
+        const node = new RouteNode({
+            children: [new RouteNode({ name: 'path', path: '/path', children: [new RouteNode({ name: 'relative', path: '/relative' }), absolute] })],
+        });
 
         expect(withoutMeta(node.matchPath('/path/relative'))).toEqual({
             name: 'path.relative',
@@ -552,7 +586,15 @@ describe('RouteNode', function () {
     });
 
     it('should automatically match deep nested "/" children', () => {
-        const node = new RouteNode('', '', [new RouteNode('section', '/section', [new RouteNode('top', '/?withParam'), new RouteNode('part', '/:part')])]);
+        const node = new RouteNode({
+            children: [
+                new RouteNode({
+                    name: 'section',
+                    path: '/section',
+                    children: [new RouteNode({ name: 'top', path: '/?withParam' }), new RouteNode({ name: 'part', path: '/:part' })],
+                }),
+            ],
+        });
 
         expect(withoutMeta(node.matchPath('/section'))).toEqual({
             name: 'section.top',
@@ -564,9 +606,15 @@ describe('RouteNode', function () {
     });
 
     it('should match deep nested "/" children with query params', () => {
-        const node = new RouteNode('', '', [
-            new RouteNode('app', '?:showVersion', [new RouteNode('admin', '/admin', [new RouteNode('users', '/?:sort?:page')])]),
-        ]);
+        const node = new RouteNode({
+            children: [
+                new RouteNode({
+                    name: 'app',
+                    path: '?:showVersion',
+                    children: [new RouteNode({ name: 'admin', path: '/admin', children: [new RouteNode({ name: 'users', path: '/?:sort?:page' })] })],
+                }),
+            ],
+        });
 
         expect(withoutMeta(node.matchPath('/admin/?page=1'))).toEqual({
             name: 'app.admin.users',
@@ -580,7 +628,7 @@ describe('RouteNode', function () {
     });
 
     it('should fully match route nodes who have no children', () => {
-        const node = new RouteNode('', '', [new RouteNode('home', '/home'), new RouteNode('section', '/:section')]);
+        const node = new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' }), new RouteNode({ name: 'section', path: '/:section' })] });
 
         expect(withoutMeta(node.matchPath('/homeland'))).toEqual({
             name: 'section',
@@ -595,7 +643,7 @@ describe('RouteNode', function () {
 
     describe('when queryParamsMode is loose', () => {
         it('should serialise extra params to search part', () => {
-            const node = new RouteNode('', '', [new RouteNode('home', '/home')]);
+            const node = new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' })] });
 
             expect(node.buildPath('home', { extra: 1, more: 2 }, { queryParamsMode: 'loose' })).toBe('/home?extra=1&more=2');
         });
@@ -603,10 +651,12 @@ describe('RouteNode', function () {
 
     describe('when strictQueryParams is falsy and strictTrailingSlash is falsy', () => {
         it('should match extra query params', () => {
-            const node = new RouteNode('', '', [
-                { name: 'root', path: '/' },
-                { name: 'home', path: '/home' },
-            ]);
+            const node = new RouteNode({
+                children: [
+                    { name: 'root', path: '/' },
+                    { name: 'home', path: '/home' },
+                ],
+            });
 
             const opts = {
                 queryParamsMode: 'default',
@@ -629,7 +679,12 @@ describe('RouteNode', function () {
     });
 
     it('should trim trailing slashes when building paths', () => {
-        const node = new RouteNode('', '', [new RouteNode('a', '/a', [new RouteNode('b', '/?c')]), new RouteNode('c', '/?c')]);
+        const node = new RouteNode({
+            children: [
+                new RouteNode({ name: 'a', path: '/a', children: [new RouteNode({ name: 'b', path: '/?c' })] }),
+                new RouteNode({ name: 'c', path: '/?c' }),
+            ],
+        });
 
         expect(node.buildPath('a.b', {}, { trailingSlashMode: 'never' })).toEqual('/a');
 
@@ -639,14 +694,30 @@ describe('RouteNode', function () {
     });
 
     it('should remove repeated slashes when building paths', () => {
-        const node = new RouteNode('', '', [new RouteNode('a', '/', [new RouteNode('b', '/', [new RouteNode('c', '/')])])]);
+        const node = new RouteNode({
+            children: [
+                new RouteNode({
+                    name: 'a',
+                    path: '/',
+                    children: [new RouteNode({ name: 'b', path: '/', children: [new RouteNode({ name: 'c', path: '/' })] })],
+                }),
+            ],
+        });
 
         expect(node.buildPath('a.b', {})).toEqual('/');
         expect(node.buildPath('a.b.c', {})).toEqual('/');
     });
 
     it('should match paths with repeating slashes', () => {
-        const node = new RouteNode('', '', [new RouteNode('a', '/', [new RouteNode('b', '/', [new RouteNode('c', ':bar')])])]);
+        const node = new RouteNode({
+            children: [
+                new RouteNode({
+                    name: 'a',
+                    path: '/',
+                    children: [new RouteNode({ name: 'b', path: '/', children: [new RouteNode({ name: 'c', path: ':bar' })] })],
+                }),
+            ],
+        });
 
         expect(withoutMeta(node.matchPath('/'))).toEqual({
             name: 'a.b',
@@ -660,7 +731,9 @@ describe('RouteNode', function () {
     });
 
     it('should sort path with complex regexes correctly', () => {
-        const node = new RouteNode('', '', [new RouteNode('a', '/:path<foo|bar(?:baz?)>/:bar'), new RouteNode('b', '/:foo')]);
+        const node = new RouteNode({
+            children: [new RouteNode({ name: 'a', path: '/:path<foo|bar(?:baz?)>/:bar' }), new RouteNode({ name: 'b', path: '/:foo' })],
+        });
 
         expect(withoutMeta(node.matchPath('/foo/bar'))).toEqual({
             name: 'a',
@@ -669,7 +742,7 @@ describe('RouteNode', function () {
     });
 
     it('should be case insensitive by default', () => {
-        const node = new RouteNode('', '', [new RouteNode('a', '/a')]);
+        const node = new RouteNode({ children: [new RouteNode({ name: 'a', path: '/a' })] });
 
         expect(node.matchPath('/a')?.name).toBe('a');
         expect(node.matchPath('/A', { caseSensitive: false })?.name).toBe('a');
@@ -677,7 +750,7 @@ describe('RouteNode', function () {
     });
 
     it('should pass query parameters options to path-parser', () => {
-        const node = new RouteNode('', '', [new RouteNode('a', '/a?b&c')]);
+        const node = new RouteNode({ children: [new RouteNode({ name: 'a', path: '/a?b&c' })] });
 
         expect(
             node.matchPath('/a?b=true&c[]=1', {
@@ -706,7 +779,7 @@ describe('RouteNode', function () {
             queryParams: { nullFormat: 'hidden' },
         } as const;
 
-        const node = new RouteNode('', '', routes);
+        const node = new RouteNode({ children: routes });
         expect(node.matchPath('/foo+bar/AB1234.html', options)?.params).toEqual({
             id: 'AB1234',
             name: 'foo+bar',
@@ -721,28 +794,32 @@ describe('RouteNode', function () {
             },
         ];
 
-        const node = new RouteNode('', '', routes);
+        const node = new RouteNode({ children: routes });
         expect(node.matchPath('/foobar%24')).toBeNull();
     });
 
     it('should throw when trying to build undefined nodes', () => {
-        const node = new RouteNode('', '', [
-            {
-                name: 'home',
-                path: '/home',
-            },
-        ]);
+        const node = new RouteNode({
+            children: [
+                {
+                    name: 'home',
+                    path: '/home',
+                },
+            ],
+        });
 
         expect(() => node.buildPath('hom')).toThrow();
     });
 
     describe('uri encoding', () => {
-        const routeNode = new RouteNode('', '', [
-            {
-                name: 'route',
-                path: '/:param',
-            },
-        ]);
+        const routeNode = new RouteNode({
+            children: [
+                {
+                    name: 'route',
+                    path: '/:param',
+                },
+            ],
+        });
 
         it('should build with correct encoding', () => {
             expect(
@@ -776,15 +853,23 @@ describe('RouteNode', function () {
 
     describe('lang prefixes', () => {
         const mainNodes = [
-            new RouteNode('default', '/'),
-            new RouteNode('home', '/home'),
-            new RouteNode('user', '/user', [new RouteNode('default', '/'), new RouteNode('orders', '/orders'), new RouteNode('reviews', '/review/:page')]),
+            new RouteNode({ name: 'default', path: '/' }),
+            new RouteNode({ name: 'home', path: '/home' }),
+            new RouteNode({
+                name: 'user',
+                path: '/user',
+                children: [
+                    new RouteNode({ name: 'default', path: '/' }),
+                    new RouteNode({ name: 'orders', path: '/orders' }),
+                    new RouteNode({ name: 'reviews', path: '/review/:page' }),
+                ],
+            }),
         ];
 
-        const enNode = new RouteNode('en', '/', mainNodes);
-        const ruNode = new RouteNode('ru', '/ru', mainNodes);
-        const koNode = new RouteNode('ko', '/ko', mainNodes);
-        const appNodes = new RouteNode('', '', [enNode, ruNode, koNode]);
+        const enNode = new RouteNode({ name: 'en', path: '/', children: mainNodes });
+        const ruNode = new RouteNode({ name: 'ru', path: '/ru', children: mainNodes });
+        const koNode = new RouteNode({ name: 'ko', path: '/ko', children: mainNodes });
+        const appNodes = new RouteNode({ children: [enNode, ruNode, koNode] });
 
         it('should match prefix-less path (en-lang)', () => {
             expect(appNodes.matchPath('/')).toEqual({
@@ -833,18 +918,54 @@ describe('RouteNode', function () {
                 })
             ).toEqual(null);
         });
+
+        it('find node', () => {
+            const mainNodes = [
+                new RouteNode({ name: 'default', path: '/' }),
+                new RouteNode({ name: 'home', path: '/home' }),
+                new RouteNode({
+                    name: 'user',
+                    path: '/user',
+                    children: [
+                        new RouteNode({ name: 'default', path: '/' }),
+                        createNode({ name: 'orders', path: '/orders', augment: 'augmentedOrders' }),
+                        new RouteNode({ name: 'reviews', path: '/review/:page' }),
+                    ],
+                }),
+            ];
+
+            const enNode = new RouteNode({ name: 'en', path: '/', children: mainNodes });
+            const ruNode = new RouteNode({ name: 'ru', path: '/ru', children: mainNodes });
+            const koNode = createNode({ name: 'ko', path: '/ko', children: mainNodes, augment: 'augmented' });
+            const appNodes = new RouteNode({ children: [enNode, ruNode, koNode] });
+
+            expect(appNodes.findNodeByName('ko.user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
+            expect(koNode.findNodeByName('user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
+        });
     });
 });
 
 function getRoutes(trailingSlash?: boolean) {
     const suffix = trailingSlash ? '/' : '';
-    const usersNode = new RouteNode('users', '/users', [new RouteNode('list', '/list' + suffix), new RouteNode('view', '/view/:id' + suffix)]);
+    const usersNode = new RouteNode({
+        name: 'users',
+        path: '/users',
+        children: [new RouteNode({ name: 'list', path: '/list' + suffix }), new RouteNode({ name: 'view', path: '/view/:id' + suffix })],
+    });
 
-    return new RouteNode('', '', [new RouteNode('home', '/home' + suffix), new RouteNode('default', '/'), usersNode]);
+    return new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' + suffix }), new RouteNode({ name: 'default', path: '/' }), usersNode] });
 }
 
 function getRoutesWithSplat() {
-    const usersNode = new RouteNode('users', '/users', [new RouteNode('splat', '/*id'), new RouteNode('view', '/view/:id'), new RouteNode('list', '/list')]);
+    const usersNode = new RouteNode({
+        name: 'users',
+        path: '/users',
+        children: [
+            new RouteNode({ name: 'splat', path: '/*id' }),
+            new RouteNode({ name: 'view', path: '/view/:id' }),
+            new RouteNode({ name: 'list', path: '/list' }),
+        ],
+    });
 
-    return new RouteNode('', '', [usersNode]);
+    return new RouteNode({ children: [usersNode] });
 }

@@ -4,15 +4,7 @@ import { IOptions as QueryParamsOptions } from 'search-params';
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortChildrenFunc } from './helpers';
 import matchChildren from './matchChildren';
 
-type Extra = { [key: string]: any };
-export interface RouteDefinition {
-    name: string;
-    path: string;
-    children?: RouteDefinition[];
-    extra?: Extra;
-}
-export type Route = RouteNode | RouteDefinition;
-export type Callback = (...args: any[]) => void;
+export type Callback = (node: Partial<RouteNode> & { name: string }) => void;
 export type TrailingSlashMode = 'default' | 'never' | 'always';
 export type QueryParamsMode = 'default' | 'strict' | 'loose';
 
@@ -32,8 +24,6 @@ export interface MatchOptions {
     strongMatching?: boolean;
     urlParamsEncoding?: URLParamsEncodingType;
 }
-
-export type { QueryParamsOptions };
 
 export interface MatchResponse {
     nodes: RouteNode[];
@@ -59,16 +49,23 @@ export interface RouteNodeOptions {
     sort?: boolean;
 }
 
-export class RouteNode {
+export interface BasicRoute {
     name: string;
-    absolute: boolean;
     path: string;
+    children?: BasicRoute[];
+    options?: RouteNodeOptions;
+    [key: string]: any;
+}
+
+export class RouteNode implements BasicRoute {
+    name: string;
+    path: string;
+    absolute: boolean;
     parser: Path | null;
     children: RouteNode[];
     parent?: RouteNode;
-    extra?: Extra;
 
-    constructor(name: string = '', path: string = '', childRoutes: Route[] = [], options: RouteNodeOptions = {}, extra?: Extra) {
+    constructor({ name = '', path = '', children = [], options = {}, ...augments }: Partial<BasicRoute> = {}) {
         this.name = name;
         this.absolute = /^~/.test(path);
         this.path = this.absolute ? path.slice(1) : path;
@@ -76,11 +73,13 @@ export class RouteNode {
         this.parser = this.path ? new Path(this.path) : null;
         this.children = [];
         this.parent = options.parent;
-        this.extra = { ...extra };
+        if (augments) {
+            Object.assign(this, augments);
+        }
 
         this.checkParents();
 
-        this.add(childRoutes, options.onAdd, options.finalSort ? false : options.sort !== false);
+        this.add(children, options.onAdd, options.finalSort ? false : options.sort !== false);
 
         if (options.finalSort) {
             this.sortDescendants();
@@ -109,7 +108,7 @@ export class RouteNode {
         this.parser = path ? new Path(path) : null;
     }
 
-    add(route: Route | Route[], cb?: Callback, sort: boolean = true): this {
+    add(route: BasicRoute | BasicRoute[], cb?: Callback, sort: boolean = true): this {
         if (route === undefined || route === null) {
             return this;
         }
@@ -126,25 +125,30 @@ export class RouteNode {
                 throw new Error('RouteNode.add() expects routes to have a name and a path defined.');
             }
 
-            let { name, path, children, extra } = route;
-            route = new RouteNode(
+            let { name, path, children, ...extra } = route;
+            route = new RouteNode({
                 name,
                 path,
                 children,
-                {
+                options: {
                     finalSort: false,
                     onAdd: cb,
                     sort,
                 },
-                extra
-            );
+                ...extra,
+            });
         }
 
-        (route as RouteNode).setParent(this);
-        this.addRouteNode(route as RouteNode, sort);
+        // Useless condition, only to please TS
+        if (!(route instanceof RouteNode)) {
+            return this;
+        }
 
-        const fullName = (route as RouteNode)
-            .getParentNodes([route as RouteNode])
+        route.setParent(this);
+        this.addRouteNode(route, sort);
+
+        const fullName = route
+            .getParentNodes([route])
             .map((_: RouteNode) => _.name)
             .join('.');
 
@@ -155,12 +159,6 @@ export class RouteNode {
             });
         }
 
-        return this;
-    }
-
-    // TODO: remove, use add instead (rewrite tests)
-    addNode(name: string, path: string) {
-        this.add(new RouteNode(name, path));
         return this;
     }
 
@@ -277,15 +275,24 @@ export class RouteNode {
         return slashChildren[0];
     }
 
-    private getNodesByName(routeName: string): RouteNode[] | null {
+    /**
+     * Getting list of nodes by full name, like `en.user.orders`
+     * @param routeName
+     * @returns RouteNode[]
+     */
+    getNodesByName(routeName: string): RouteNode[] | null {
         const findNodeByName = (name: string, routes: RouteNode[]) => {
             const filteredRoutes = routes.filter((r) => r.name === name);
             return filteredRoutes.length ? filteredRoutes[0] : undefined;
         };
 
         const nodes: RouteNode[] = [];
-        let routes = this.parser ? [this] : this.children;
-        const names = (this.parser ? [''] : []).concat(routeName.split('.'));
+        // let routes = this.parser ? [this] : this.children;
+        let routes: RouteNode[] = [this];
+        // let routes = this.children;
+        // const names = (this.parser ? [this.name] : []).concat(routeName.split('.'));
+        const names = [this.name].concat(routeName.split('.'));
+        // const names = routeName.split('.');
 
         const matched = names.every((name) => {
             const node = findNodeByName(name, routes);
@@ -299,6 +306,17 @@ export class RouteNode {
         });
 
         return matched ? nodes : null;
+    }
+
+    /**
+     * Find one node by full name of the node, like `en.user.orders`
+     * @param routeName
+     * @returns RouteNode
+     */
+    findNodeByName(routeName: string): RouteNode | null {
+        let node = this.getNodesByName(routeName);
+        if (node === null) return null;
+        return node[node.length - 1];
     }
 
     matchPath(path: string, options: MatchOptions = {}): RouteNodeState | null {
@@ -349,3 +367,11 @@ export class RouteNode {
         return finalMatch;
     }
 }
+
+/**
+ * Create augmented RouteNode.
+ * Ts workaround, to get proper augmented type autocomplete
+ * @param init
+ * @returns RouteNode
+ */
+export const createNode = <Augments>(init?: Partial<BasicRoute> & Augments) => new RouteNode(init) as RouteNode & Augments;
