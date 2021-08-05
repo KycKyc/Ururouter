@@ -14,7 +14,7 @@ describe('RouteNode', function () {
     it('should instanciate an empty RouteNode if no routes are specified in constructor', function () {
         const node = new RouteNode();
 
-        expect(node.children.length).toBe(0);
+        expect(node.nameMap.size).toBe(0);
     });
 
     it('should throw an error when RouteNode is not used as a constructor', function () {
@@ -32,7 +32,7 @@ describe('RouteNode', function () {
             ],
         });
 
-        expect(node.children.length).toBe(2);
+        expect(node.nameMap.size).toBe(2);
     });
 
     it('should callback for each route', function () {
@@ -112,11 +112,11 @@ describe('RouteNode', function () {
 
         expect(function () {
             root.add({ name: 'home', path: '/profile' });
-        }).toThrow('Alias "home" is already defined in route node');
+        }).toThrow('Name "home" is already defined in this node: "", will not overwrite');
 
         expect(function () {
             root.add({ name: 'profile', path: '/home' });
-        }).toThrow('Path "/home" is already defined in route node');
+        }).toThrow('Path "/home" is already defined in this node: "", will not overwrite');
 
         expect(function () {
             root.add({ name: 'home.profile', path: '/home' });
@@ -137,7 +137,7 @@ describe('RouteNode', function () {
     it('should instanciate a RouteNode object from RouteNode objects', function () {
         const node = new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' }), new RouteNode({ name: 'profile', path: '/profile' })] });
 
-        expect(node.children.length).toBe(2);
+        expect(node.nameMap.size).toBe(2);
     });
 
     it('should find a nested route by name', function () {
@@ -542,13 +542,18 @@ describe('RouteNode', function () {
     });
 
     it('should throw an error when adding an absolute path below nodes with params', () => {
-        function createNode() {
-            return new RouteNode({
-                children: [new RouteNode({ name: 'path', path: '/path/:path', children: [new RouteNode({ name: 'absolute', path: '~/absolute' })] })],
-            });
-        }
+        const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => jest.fn());
+        new RouteNode({
+            children: [new RouteNode({ name: 'path', path: '/path/:path', children: [new RouteNode({ name: 'absolute', path: '~/absolute' })] })],
+        });
 
-        expect(createNode).toThrow();
+        // const consoleWarn = console.warn;
+        // console.warn = jest.fn();
+        expect(consoleSpy).toHaveBeenCalledWith(
+            'Absolute child-Node was placed under Node that have params in their path, be sure that this child-node will migrate to another node, node: path, child-node: absolute'
+        );
+
+        // console.warn = consoleWarn;
     });
 
     it('should build absolute paths', function () {
@@ -563,7 +568,7 @@ describe('RouteNode', function () {
         });
 
         expect(node.buildPath('path.relative')).toBe('/path/relative');
-        expect(node.buildPath('path.absolute')).toBe('/absolute');
+        expect(node.buildPath('absolute')).toBe('/absolute');
     });
 
     it('should match absolute paths', function () {
@@ -580,7 +585,7 @@ describe('RouteNode', function () {
 
         expect(node.matchPath('/path/absolute')).toBeNull();
         expect(withoutMeta(node.matchPath('/absolute'))).toEqual({
-            name: 'path.absolute',
+            name: 'absolute',
             params: {},
         });
     });
@@ -939,8 +944,8 @@ describe('RouteNode', function () {
             const koNode = createNode({ name: 'ko', path: '/ko', children: mainNodes, augment: 'augmented' });
             const appNodes = new RouteNode({ children: [enNode, ruNode, koNode] });
 
-            expect(appNodes.findNodeByName('ko.user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
-            expect(koNode.findNodeByName('user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
+            expect(appNodes.getNodeByName('ko.user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
+            expect(koNode.getNodeByName('user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
         });
     });
 });

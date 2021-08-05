@@ -111,15 +111,30 @@ export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, an
 
 export const getPathFromNodes = (nodes: RouteNode[]): string | null => (nodes ? nodes.map((node) => node.path).join('') : null);
 
-export const sortChildrenFunc =
-    (originalChildren: RouteNode[]) =>
-    (left: RouteNode, right: RouteNode): number => {
-        const leftPath = left.path
+export const sortedPathMap = (originalMap: Map<string, RouteNode>): Map<string, RouteNode> => {
+    let sortedArray = [];
+    let iterator = originalMap.entries();
+    let entry = iterator.next();
+    while (!entry.done) {
+        sortedArray.push(entry.value);
+        entry = iterator.next();
+    }
+
+    sortedArray.sort(sortFunc([...sortedArray]));
+    return new Map(sortedArray);
+};
+
+export const sortFunc =
+    (original: [string, RouteNode][]) =>
+    (left: [string, RouteNode], right: [string, RouteNode]): number => {
+        let leftNode = left[1];
+        let rightNode = right[1];
+        const leftPath = leftNode.path
             .replace(/<.*?>/g, '')
             .split('?')[0]
             .replace(/(.+)\/$/, '$1');
 
-        const rightPath = right.path
+        const rightPath = rightNode.path
             .replace(/<.*?>/g, '')
             .split('?')[0]
             .replace(/(.+)\/$/, '$1');
@@ -134,11 +149,11 @@ export const sortChildrenFunc =
         }
 
         // Spat params last
-        if (left.parser?.hasSpatParam) {
+        if (leftNode.parser?.hasSpatParam) {
             return 1;
         }
 
-        if (right.parser?.hasSpatParam) {
+        if (rightNode.parser?.hasSpatParam) {
             return -1;
         }
 
@@ -154,8 +169,8 @@ export const sortChildrenFunc =
         }
 
         // Same number of segments, number of URL params ascending
-        const leftParamsCount = left.parser?.urlParams.length ?? 0;
-        const rightParamsCount = right.parser?.urlParams.length ?? 0;
+        const leftParamsCount = leftNode.parser?.urlParams.length ?? 0;
+        const rightParamsCount = rightNode.parser?.urlParams.length ?? 0;
         if (leftParamsCount < rightParamsCount) {
             return -1;
         }
@@ -177,5 +192,5 @@ export const sortChildrenFunc =
 
         // Same last segment length, preserve definition order. Note that we
         // cannot just return 0, as sort is not guaranteed to be a stable sort.
-        return originalChildren.indexOf(left) - originalChildren.indexOf(right);
+        return original.indexOf(left) - original.indexOf(right);
     };

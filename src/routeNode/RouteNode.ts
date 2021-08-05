@@ -1,7 +1,7 @@
 import { Path, URLParamsEncodingType } from 'pathParser';
 import { IOptions as QueryParamsOptions } from 'search-params';
 
-import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortChildrenFunc } from './helpers';
+import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedPathMap } from './helpers';
 import matchChildren from './matchChildren';
 
 export type Callback = (node: Partial<RouteNode> & { name: string }) => void;
@@ -21,7 +21,6 @@ export interface MatchOptions {
     queryParamsMode?: QueryParamsMode;
     queryParams?: QueryParamsOptions;
     strictTrailingSlash?: boolean;
-    strongMatching?: boolean;
     urlParamsEncoding?: URLParamsEncodingType;
 }
 
@@ -59,25 +58,41 @@ export interface BasicRoute {
 
 export class RouteNode implements BasicRoute {
     name: string;
+    treeNames: string[];
     path: string;
     absolute: boolean;
     parser: Path | null;
-    children: RouteNode[];
+    nameMap: Map<string, RouteNode>;
+    pathMap: Map<string, RouteNode>;
     parent?: RouteNode;
 
     constructor({ name = '', path = '', children = [], options = {}, ...augments }: Partial<BasicRoute> = {}) {
         this.name = name;
+
+        // Small hack, we are doing it here to properly inherit parrent name in case if we are building nodes from one large object.
+        // Otherwise we will end with `parent.child` -> `child.subchild` -> `subchild.subsubchild` etc.
+        this.treeNames = [];
+        if (augments['__parentNames'] instanceof Array) {
+            if (augments['__parentNames'].length === 0) {
+                this.treeNames.push(this.name);
+            } else {
+                augments['__parentNames'].forEach((name) => {
+                    this.treeNames.push(`${name}.${this.name}`);
+                });
+            }
+        }
+
         this.absolute = /^~/.test(path);
         this.path = this.absolute ? path.slice(1) : path;
 
         this.parser = this.path ? new Path(this.path) : null;
-        this.children = [];
-        this.parent = options.parent;
+
+        this.nameMap = new Map();
+        this.pathMap = new Map();
+
         if (augments) {
             Object.assign(this, augments);
         }
-
-        this.checkParents();
 
         this.add(children, options.onAdd, options.finalSort ? false : options.sort !== false);
 
@@ -88,9 +103,14 @@ export class RouteNode implements BasicRoute {
         return this;
     }
 
-    private checkParents() {
-        if (this.absolute && this.hasParentsParams()) {
-            throw new Error('[RouteNode] A RouteNode with an abolute path cannot have parents with route parameters');
+    private getRootNode(): RouteNode {
+        let node: RouteNode = this;
+        while (true) {
+            if (node.parent === undefined) {
+                return node;
+            }
+
+            node = node.parent;
         }
     }
 
@@ -98,29 +118,38 @@ export class RouteNode implements BasicRoute {
         return this.parent && this.parent.parser ? this.parent.getParentNodes(nodes.concat(this.parent)) : nodes.reverse();
     }
 
-    setParent(parent: RouteNode) {
-        this.parent = parent;
-        this.checkParents();
-    }
-
+    /**
+     * Probably you wanna sort parrent childs after changing the path ?
+     * @param path
+     */
     setPath(path: string = '') {
         this.path = path;
         this.parser = path ? new Path(path) : null;
     }
 
+    /**
+     * Sort is mandatory
+     * @param route
+     * @param cb
+     * @param sort
+     * @returns
+     */
     add(route: BasicRoute | BasicRoute[], cb?: Callback, sort: boolean = true): this {
         if (route === undefined || route === null) {
             return this;
         }
 
         if (route instanceof Array) {
-            route.forEach((r) => this.add(r, cb, sort));
+            route.forEach((r) => this.add(r, cb, false));
+            if (sort) this.sortChildren();
             return this;
         }
 
         if (!(route instanceof RouteNode) && !(route instanceof Object)) {
             throw new Error('RouteNode.add() expects routes to be an Object or an instance of RouteNode.');
-        } else if (!(route instanceof RouteNode)) {
+        }
+
+        if (!(route instanceof RouteNode)) {
             if (!route.name || !route.path) {
                 throw new Error('RouteNode.add() expects routes to have a name and a path defined.');
             }
@@ -136,6 +165,7 @@ export class RouteNode implements BasicRoute {
                     sort,
                 },
                 ...extra,
+                __parentNames: this.treeNames,
             });
         }
 
@@ -144,7 +174,6 @@ export class RouteNode implements BasicRoute {
             return this;
         }
 
-        route.setParent(this);
         this.addRouteNode(route, sort);
 
         const fullName = route
@@ -163,30 +192,94 @@ export class RouteNode implements BasicRoute {
     }
 
     private addRouteNode(route: RouteNode, sort: boolean = true): this {
+        let rootNode = this.getRootNode();
+
+        // Move absolute node under control of `rootNode`
+        if (route.absolute && this !== rootNode) {
+            rootNode.addRouteNode(route, sort);
+            return this;
+        }
+
+        // `route` have childs, some of them are absolute ?
+        // move them under control of `rootNode`
+        const nameIter = route.nameMap.entries();
+        const pathIter = route.pathMap.entries();
+        let nameResult = nameIter.next();
+        let pathResult = pathIter.next();
+        // After moving all nodes, we should sort them, only once, to save resources
+        let sortAfter = false;
+        // These maps should be in sync, checking one is enough
+        while (!nameResult.done) {
+            let [childName, childNode] = nameResult.value;
+            let childPath = pathResult.value[0];
+            if (childNode.absolute) {
+                route.nameMap.delete(childName);
+                route.pathMap.delete(childPath);
+                rootNode.addRouteNode(childNode, false);
+                sortAfter = true;
+            }
+
+            nameResult = nameIter.next();
+            pathResult = pathIter.next();
+        }
+
+        if (sortAfter) {
+            rootNode.sortChildren();
+        }
+
+        // Process with attempt to add `route` as a child of this node
         const names = route.name.split('.');
-
         if (names.length === 1) {
-            // Check duplicated routes
-            if (this.children.map((child) => child.name).indexOf(route.name) !== -1) {
-                throw new Error(`Alias "${route.name}" is already defined in route node`);
+            // Check if name already defined
+            if (this.nameMap.has(route.name) && this.nameMap.get(route.name) !== route) {
+                throw new Error(`Name "${route.name}" is already defined in this node: "${this.name}", will not overwrite`);
             }
 
-            // Check duplicated paths
-            if (this.children.map((child) => child.path).indexOf(route.path) !== -1) {
-                throw new Error(`Path "${route.path}" is already defined in route node`);
+            // Check if path already defined
+            if (this.pathMap.has(route.path) && this.pathMap.get(route.path) !== route) {
+                throw new Error(`Path "${route.path}" is already defined in this node: "${this.name}", will not overwrite`);
             }
 
-            this.children.push(route);
+            if (this.nameMap.get(route.name) === route && this.pathMap.get(route.path) === route) {
+                // Already defined, no point in redefining the same node on the same name and path
+                return this;
+            }
+
+            this.nameMap.set(route.name, route);
+            this.pathMap.set(route.path, route);
+            route.parent = this;
+
+            // Update treeNames
+            let treeNames = [];
+            if (this.treeNames.length === 0) {
+                treeNames.push(route.name);
+            } else {
+                this.treeNames.forEach((name) => {
+                    treeNames.push(`${name}.${route.name}`);
+                });
+            }
+
+            route.treeNames = treeNames;
+
+            if (
+                route.absolute &&
+                this.parser &&
+                (this.parser.hasUrlParams || this.parser.hasSpatParam || this.parser.hasMatrixParams || this.parser.hasQueryParams)
+            ) {
+                console.warn(
+                    `Absolute child-Node was placed under Node that have params in their path, be sure that this child-node will migrate to another node, node: ${this.name}, child-node: ${route.name}`
+                );
+            }
 
             if (sort) {
                 this.sortChildren();
             }
         } else {
-            // Locate parent node
+            // Locate parent node,`route.name` should already be descendant of this node.
             const nodes = this.getNodesByName(names.slice(0, -1).join('.'));
             if (nodes) {
                 route.name = names[names.length - 1];
-                nodes[nodes.length - 1].add(route);
+                nodes[nodes.length - 1].addRouteNode(route, sort);
             } else {
                 throw new Error(`Could not add route named '${route.name}', parent is missing.`);
             }
@@ -201,26 +294,31 @@ export class RouteNode implements BasicRoute {
         return nodesByName ? getPathFromNodes(nodesByName) : null;
     }
 
-    getNonAbsoluteChildren(): RouteNode[] {
-        return this.children.filter((child) => !child.absolute);
-    }
-
     sortChildren() {
-        if (!this.children.length) return;
-        const originalChildren = this.children.slice(0);
-        this.children.sort(sortChildrenFunc(originalChildren));
+        if (!this.pathMap.size) return;
+        this.pathMap = sortedPathMap(this.pathMap);
     }
 
     sortDescendants() {
         this.sortChildren();
-        this.children.forEach((child) => child.sortDescendants());
+        let i = this.pathMap.values();
+        let result = i.next();
+        while (!result.done) {
+            let childNope = result.value;
+            childNope.sortDescendants();
+            result = i.next();
+        }
     }
 
     buildPath(routeName: string, params: Record<string, any> = {}, options: BuildOptions = {}): string {
         const nodes = this.getNodesByName(routeName);
 
         if (!nodes) {
-            throw new Error("[route-node][buildPath] '{routeName}' is not defined");
+            throw new Error(`[route-node][buildPath] "${routeName}" is not defined`);
+        }
+
+        if (this.parser) {
+            nodes.splice(0, 0, this);
         }
 
         return buildPathFromNodes(nodes, params, options);
@@ -233,6 +331,10 @@ export class RouteNode implements BasicRoute {
             return null;
         }
 
+        if (this.parser) {
+            nodes.splice(0, 0, this);
+        }
+
         return {
             name,
             params,
@@ -240,80 +342,64 @@ export class RouteNode implements BasicRoute {
         };
     }
 
-    private hasParentsParams(): boolean {
-        if (this.parent && this.parent.parser) {
-            const parser = this.parent.parser;
-            const hasParams = parser.hasUrlParams || parser.hasSpatParam || parser.hasMatrixParams || parser.hasQueryParams;
+    // private hasParentsParams(): boolean {
+    //     if (this.parent && this.parent.parser) {
+    //         const parser = this.parent.parser;
+    //         const hasParams = parser.hasUrlParams || parser.hasSpatParam || parser.hasMatrixParams || parser.hasQueryParams;
 
-            return hasParams || this.parent.hasParentsParams();
-        }
+    //         return hasParams || this.parent.hasParentsParams();
+    //     }
 
-        return false;
-    }
-
-    private findAbsoluteChildren(): RouteNode[] {
-        return this.children.reduce<RouteNode[]>(
-            (absoluteChildren, child) => absoluteChildren.concat(child.absolute ? child : []).concat(child.findAbsoluteChildren()),
-            []
-        );
-    }
+    //     return false;
+    // }
 
     /**
-     * Getting the last child with slash or question mark at the end.
-     * Used in `matchPath`.
-     * When we find a Node and this node is having a child, like `/`
+     * Getting the last child of this node with slash or question mark at the end.
+     * Used in `matchPath`, because match isn't going to return this child, we have to add it manualy into the result
      *
      * As example:
      * Node `/ko`
-     *    Subnode: `/`
+     *    Subnode: `/` <- return it
      *
      * @returns RouteNode
      */
     private findSlashChild(): RouteNode | undefined {
-        const slashChildren = this.getNonAbsoluteChildren().filter((child) => child.parser && /^\/(\?|$)/.test(child.parser.path));
+        let slashChildren: RouteNode[] = [];
+        this.pathMap.forEach((node, path) => {
+            if (node.parser && /^\/(\?|$)/.test(path)) {
+                slashChildren.push(node);
+            }
+        });
 
         return slashChildren[0];
     }
 
     /**
-     * Getting list of nodes by full name, like `en.user.orders`
+     * Get LIST of nodes by full name, like `en.user.orders`
      * @param routeName
      * @returns RouteNode[]
      */
     getNodesByName(routeName: string): RouteNode[] | null {
-        const findNodeByName = (name: string, routes: RouteNode[]) => {
-            const filteredRoutes = routes.filter((r) => r.name === name);
-            return filteredRoutes.length ? filteredRoutes[0] : undefined;
-        };
+        const result: RouteNode[] = [];
+        let scanNode: RouteNode = this;
 
-        const nodes: RouteNode[] = [];
-        // let routes = this.parser ? [this] : this.children;
-        let routes: RouteNode[] = [this];
-        // let routes = this.children;
-        // const names = (this.parser ? [this.name] : []).concat(routeName.split('.'));
-        const names = [this.name].concat(routeName.split('.'));
-        // const names = routeName.split('.');
-
-        const matched = names.every((name) => {
-            const node = findNodeByName(name, routes);
-            if (node) {
-                routes = node.children;
-                nodes.push(node);
-                return true;
-            }
-
-            return false;
+        const matched = routeName.split('.').every((name) => {
+            let subNode = scanNode.nameMap.get(name);
+            if (subNode === undefined) return false;
+            result.push(subNode);
+            scanNode = subNode;
+            return true;
         });
 
-        return matched ? nodes : null;
+        return matched ? result : null;
     }
 
     /**
-     * Find one node by full name of the node, like `en.user.orders`
+     * get ONE node by full name of the node, like `en.user.orders`
      * @param routeName
      * @returns RouteNode
      */
-    findNodeByName(routeName: string): RouteNode | null {
+    getNodeByName(routeName: string): RouteNode | null {
         let node = this.getNodesByName(routeName);
         if (node === null) return null;
         return node[node.length - 1];
@@ -330,39 +416,33 @@ export class RouteNode implements BasicRoute {
             return null;
         }
 
-        const matchedNodes = match.nodes;
+        // const matchedNodes = match.nodes;
 
         // if match was absolute node.
-        if (matchedNodes[0].absolute) {
-            const nodeParents = matchedNodes[0].getParentNodes();
+        // if (matchedNodes[0].absolute) {
+        //     const nodeParents = matchedNodes[0].getParentNodes();
 
-            matchedNodes.splice(0, 0, ...nodeParents);
-        }
+        //     matchedNodes.splice(0, 0, ...nodeParents);
+        // }
 
-        const lastNode = matchedNodes[matchedNodes.length - 1];
+        const lastNode = match.nodes[match.nodes.length - 1];
         const lastNodeSlashChild = lastNode.findSlashChild();
 
         if (lastNodeSlashChild) {
-            matchedNodes.push(lastNodeSlashChild);
+            match.nodes.push(lastNodeSlashChild);
         }
 
         return buildStateFromMatch(match);
     }
 
     private getNodesMatchingPath(path: string, options: MatchOptions): MatchResponse | null {
-        const topLevelNodes = this.parser ? [this] : this.children;
-        const startingNodes = topLevelNodes.reduce<RouteNode[]>((nodes, node) => nodes.concat(node, node.findAbsoluteChildren()), []);
+        const topLevelNodes = this.parser ? new Map([[this.path, this]]) : this.pathMap;
 
-        const currentMatch: MatchResponse = {
-            nodes: [],
-            params: {},
-        };
+        const finalMatch = matchChildren(topLevelNodes, path, options);
 
-        const finalMatch = matchChildren(startingNodes, path, currentMatch, options);
-
-        if (finalMatch && finalMatch.nodes.length === 1 && finalMatch.nodes[0].name === '') {
-            return null;
-        }
+        // if (finalMatch && finalMatch.nodes.length === 1 && finalMatch.nodes[0].name === '') {
+        //     return null;
+        // }
 
         return finalMatch;
     }
