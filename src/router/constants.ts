@@ -1,0 +1,23 @@
+export const errorCodes = {
+    ROUTER_NOT_STARTED: 'NOT_STARTED',
+    NO_START_PATH_OR_STATE: 'NO_START_PATH_OR_STATE',
+    ROUTER_ALREADY_STARTED: 'ALREADY_STARTED',
+    ROUTE_NOT_FOUND: 'ROUTE_NOT_FOUND',
+    SAME_STATES: 'SAME_STATES',
+    CANNOT_DEACTIVATE: 'CANNOT_DEACTIVATE',
+    CANNOT_ACTIVATE: 'CANNOT_ACTIVATE',
+    TRANSITION_ERROR: 'TRANSITION_ERROR',
+    TRANSITION_UNKNOWN_ERROR: 'TRANSITION_UNKNOWN_ERROR',
+    TRANSITION_CANCELLED: 'TRANSITION_CANCELLED',
+    TRANSITION_REDIRECTED: 'TRANSITION_REDIRECTED',
+} as const;
+
+export const constants = {
+    UNKNOWN_ROUTE: '@@router/UNKNOWN_ROUTE',
+    ROUTER_START: '@@router/start',
+    ROUTER_STOP: '@@router/stop',
+    TRANSITION_START: '@@router/transition/start',
+    TRANSITION_CANCEL: '@@router/transition/cancel',
+    TRANSITION_SUCCESS: '@@router/transition/success',
+    TRANSITION_ERROR: '@@router/transition/error',
+} as const;
