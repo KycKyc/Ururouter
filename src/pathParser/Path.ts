@@ -1,4 +1,4 @@
-import { build as buildQueryParams, IOptions, parse as parseQueryParams } from 'search-params';
+import { build as buildQueryParams, IOptions as QueryParamFormats, parse as parseQueryParams } from 'search-params';
 
 import { URLParamsEncodingType, decodeParam, encodeParam } from './encoding';
 import { defaultOrConstrained } from './rules';
@@ -45,7 +45,7 @@ export interface PathOptions {
      * Query parameters buiding and matching options, see
      * https://github.com/troch/search-params#options
      */
-    queryParams?: IOptions;
+    queryParamFormats?: QueryParamFormats;
     /**
      * Specifies the method used to encode URL parameters:
      *   - `'default': `encodeURIComponent` and `decodeURIComponent`
@@ -63,7 +63,7 @@ export interface PathOptions {
 }
 
 export interface InternalPathOptions {
-    queryParams?: IOptions;
+    queryParamFormats?: QueryParamFormats;
     urlParamsEncoding: URLParamsEncodingType;
 }
 
@@ -171,7 +171,7 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
         }
 
         // Extract query params
-        const queryParams = parseQueryParams(path, options.queryParams);
+        const queryParams = parseQueryParams(path, options.queryParamFormats);
         const unexpectedQueryParams = Object.keys(queryParams).filter((p) => !this.isQueryParam(p));
 
         if (unexpectedQueryParams.length === 0) {
@@ -208,7 +208,7 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
             return match;
         }
 
-        const queryParams = parseQueryParams(path, options.queryParams);
+        const queryParams = parseQueryParams(path, options.queryParamFormats);
 
         Object.keys(queryParams)
             .filter((p) => this.isQueryParam(p))
@@ -221,7 +221,7 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
         const options = {
             ignoreConstraints: false,
             ignoreSearch: false,
-            queryParams: {},
+            queryParamFormats: {},
             ...this.options,
             ...opts,
         } as const;
@@ -301,7 +301,7 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
                 return sparams;
             }, {});
 
-        const searchPart = buildQueryParams(searchParams, options.queryParams);
+        const searchPart = buildQueryParams(searchParams, options.queryParamFormats);
 
         return searchPart ? base + '?' + searchPart : base;
     }

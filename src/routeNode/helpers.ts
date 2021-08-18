@@ -3,10 +3,13 @@ import { BuildOptions, MatchResponse, RouteNode, RouteNodeState, RouteNodeStateM
 
 export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
     let accName = '';
+    let meta = {
+        params: {},
+    };
 
-    return nodes.reduce<RouteNodeStateMeta>((meta, node) => {
+    meta.params = nodes.reduce<RouteNodeStateMeta['params']>((params, node) => {
         if (!node.parser) {
-            return meta;
+            return params;
         }
 
         //TODO: we already checking presense of parser, do we need fallbacks ?
@@ -24,11 +27,13 @@ export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
 
         if (node.name !== undefined) {
             accName = accName ? accName + '.' + node.name : node.name;
-            meta[accName] = allParams;
+            params[accName] = allParams;
         }
 
-        return meta;
+        return params;
     }, {});
+
+    return meta;
 };
 
 export const buildStateFromMatch = (match: MatchResponse): RouteNodeState | null => {
@@ -82,14 +87,14 @@ export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, an
         return acc;
     }, {});
 
-    const searchPart = build(searchParamsObject, options.queryParams);
+    const searchPart = build(searchParamsObject, options.queryParamFormats);
 
     const path = nodes
         .reduce<string>((path, node) => {
             const nodePath =
                 node.parser?.build(params, {
                     ignoreSearch: true,
-                    queryParams: options.queryParams,
+                    queryParamFormats: options.queryParamFormats,
                     urlParamsEncoding: options.urlParamsEncoding,
                 }) ?? '';
 

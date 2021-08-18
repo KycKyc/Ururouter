@@ -36,7 +36,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
             // Partially match remaining path segment
             match = node.parser!.partialTest(path, {
                 caseSensitive,
-                queryParams: options.queryParams,
+                queryParamFormats: options.queryParamFormats,
                 urlParamsEncoding: options.urlParamsEncoding,
             });
 
@@ -57,7 +57,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
             }
 
             // Remove url-query params owned by this node from the remaining path, all is left will be placed in the `querystring` variable.
-            const { querystring } = omit(getSearch(path), node.parser!.queryParams, options.queryParams);
+            const { querystring } = omit(getSearch(path), node.parser!.queryParams, options.queryParamFormats);
 
             path = getPath(path);
 
@@ -80,7 +80,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
             if (queryParamsMode !== 'strict' && path.indexOf('?') === 0) {
                 // Non strict mode
                 // And some unmatched queryParams is left, save them
-                const remainingQueryParams = parse(path.slice(1), options.queryParams) as any;
+                const remainingQueryParams = parse(path.slice(1), options.queryParamFormats) as any;
 
                 Object.keys(remainingQueryParams).forEach((name) => (currentMatch.params[name] = remainingQueryParams[name]));
 

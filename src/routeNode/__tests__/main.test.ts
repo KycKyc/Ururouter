@@ -759,7 +759,7 @@ describe('RouteNode', function () {
 
         expect(
             node.matchPath('/a?b=true&c[]=1', {
-                queryParams: {
+                queryParamFormats: {
                     booleanFormat: 'string',
                     arrayFormat: 'brackets',
                 },
@@ -946,6 +946,35 @@ describe('RouteNode', function () {
 
             expect(appNodes.getNodeByName('ko.user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
             expect(koNode.getNodeByName('user.orders')).toMatchObject({ name: 'orders', path: '/orders', augment: 'augmentedOrders' });
+        });
+    });
+
+    describe('experiments', function () {
+        it('reviews', () => {
+            let tree = createNode({
+                name: 'app',
+                children: [
+                    createNode({
+                        name: 'user',
+                        path: '/user',
+                        children: [
+                            createNode({
+                                name: 'reviews',
+                                path: '/reviews',
+                                children: [createNode({ name: 'root', path: '/' }), createNode({ name: 'page', path: '/:page' })],
+                            }),
+                        ],
+                    }),
+                    createNode({ name: 'orders', path: '/orders' }),
+                ],
+            });
+
+            let result = tree.matchPath('/user/reviews', { strictTrailingSlash: true });
+            console.debug(result);
+            result = tree.matchPath('/user/reviews/', { strictTrailingSlash: true });
+            console.debug(result);
+            result = tree.matchPath('/user/reviews/1');
+            console.debug(result);
         });
     });
 });

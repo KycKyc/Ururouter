@@ -51,7 +51,7 @@ describe('Path', () => {
 
     it('should match and build paths with query parameters', () => {
         const path = new Path('/users?offset&limit', {
-            queryParams: { booleanFormat: 'string' },
+            queryParamFormats: { booleanFormat: 'string' },
         });
 
         // Successful match & partial match
@@ -104,7 +104,7 @@ describe('Path', () => {
 
     it('should match and build paths of query parameters with square brackets', () => {
         const path = new Path('/users?offset&limit', {
-            queryParams: { arrayFormat: 'brackets' },
+            queryParamFormats: { arrayFormat: 'brackets' },
         });
 
         expect(path.build({ offset: 31, limit: ['15'] })).toBe('/users?offset=31&limit[]=15');
@@ -284,7 +284,7 @@ describe('Path', () => {
 
     it('should be to overwrite options when building', () => {
         const path = new Path<{ param: string; enabled?: boolean }>('/:param?enabled', {
-            queryParams: {
+            queryParamFormats: {
                 booleanFormat: 'string',
             },
             urlParamsEncoding: 'uriComponent',
@@ -296,7 +296,7 @@ describe('Path', () => {
             path.build(
                 { param: 'a+b', enabled: true },
                 {
-                    queryParams: { booleanFormat: 'empty-true' },
+                    queryParamFormats: { booleanFormat: 'empty-true' },
                     urlParamsEncoding: 'default',
                 }
             )
@@ -305,7 +305,7 @@ describe('Path', () => {
 
     it('should be to overwrite options when matching', () => {
         const path = new Path<{ param: string; enabled?: boolean }>('/:param?enabled', {
-            queryParams: {
+            queryParamFormats: {
                 booleanFormat: 'string',
             },
             urlParamsEncoding: 'uriComponent',
@@ -318,7 +318,7 @@ describe('Path', () => {
 
         expect(
             path.test('/a+b?enabled', {
-                queryParams: { booleanFormat: 'empty-true' },
+                queryParamFormats: { booleanFormat: 'empty-true' },
             })
         ).toEqual({
             param: 'a+b',

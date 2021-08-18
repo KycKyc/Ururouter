@@ -1,5 +1,5 @@
 import { Path, URLParamsEncodingType } from 'pathParser';
-import { IOptions as QueryParamsOptions } from 'search-params';
+import { IOptions as QueryParamFormats } from 'search-params';
 
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedPathMap } from './helpers';
 import matchChildren from './matchChildren';
@@ -11,7 +11,7 @@ export type QueryParamsMode = 'default' | 'strict' | 'loose';
 export interface BuildOptions {
     trailingSlashMode?: TrailingSlashMode;
     queryParamsMode?: QueryParamsMode;
-    queryParams?: QueryParamsOptions;
+    queryParamFormats?: QueryParamFormats;
     urlParamsEncoding?: URLParamsEncodingType;
 }
 
@@ -19,7 +19,7 @@ export interface MatchOptions {
     caseSensitive?: boolean;
     trailingSlashMode?: TrailingSlashMode;
     queryParamsMode?: QueryParamsMode;
-    queryParams?: QueryParamsOptions;
+    queryParamFormats?: QueryParamFormats;
     strictTrailingSlash?: boolean;
     urlParamsEncoding?: URLParamsEncodingType;
 }
@@ -30,8 +30,10 @@ export interface MatchResponse {
 }
 
 export interface RouteNodeStateMeta {
-    [routeName: string]: {
-        [routeParams: string]: 'query' | 'url';
+    params: {
+        [routeName: string]: {
+            [routeParams: string]: 'query' | 'url';
+        };
     };
 }
 
@@ -57,13 +59,14 @@ export interface BasicRoute {
 }
 
 export class RouteNode implements BasicRoute {
+    ['constructor']: new (init: Partial<BasicRoute>) => this;
     name: string;
     treeNames: string[];
     path: string;
     absolute: boolean;
     parser: Path | null;
-    nameMap: Map<string, RouteNode>;
-    pathMap: Map<string, RouteNode>;
+    nameMap: Map<string, this>;
+    pathMap: Map<string, this>;
     parent?: RouteNode;
 
     constructor({ name = '', path = '', children = [], options = {}, ...augments }: Partial<BasicRoute> = {}) {
@@ -155,7 +158,7 @@ export class RouteNode implements BasicRoute {
             }
 
             let { name, path, children, ...extra } = route;
-            route = new RouteNode({
+            route = new this.constructor({
                 name,
                 path,
                 children,
@@ -170,11 +173,11 @@ export class RouteNode implements BasicRoute {
         }
 
         // Useless condition, only to please TS
-        if (!(route instanceof RouteNode)) {
+        if (!(route instanceof this.constructor)) {
             return this;
         }
 
-        this.addRouteNode(route, sort);
+        this.addRouteNode(route as this, sort);
 
         const fullName = route
             .getParentNodes([route])
@@ -191,7 +194,7 @@ export class RouteNode implements BasicRoute {
         return this;
     }
 
-    private addRouteNode(route: RouteNode, sort: boolean = true): this {
+    private addRouteNode(route: this, sort: boolean = true): this {
         let rootNode = this.getRootNode();
 
         // Move absolute node under control of `rootNode`
@@ -296,7 +299,7 @@ export class RouteNode implements BasicRoute {
 
     sortChildren() {
         if (!this.pathMap.size) return;
-        this.pathMap = sortedPathMap(this.pathMap);
+        this.pathMap = sortedPathMap(this.pathMap) as Map<string, this>;
     }
 
     sortDescendants() {
@@ -342,17 +345,6 @@ export class RouteNode implements BasicRoute {
         };
     }
 
-    // private hasParentsParams(): boolean {
-    //     if (this.parent && this.parent.parser) {
-    //         const parser = this.parent.parser;
-    //         const hasParams = parser.hasUrlParams || parser.hasSpatParam || parser.hasMatrixParams || parser.hasQueryParams;
-
-    //         return hasParams || this.parent.hasParentsParams();
-    //     }
-
-    //     return false;
-    // }
-
     /**
      * Getting the last child of this node with slash or question mark at the end.
      * Used in `matchPath`, because match isn't going to return this child, we have to add it manualy into the result
@@ -379,9 +371,9 @@ export class RouteNode implements BasicRoute {
      * @param routeName
      * @returns RouteNode[]
      */
-    getNodesByName(routeName: string): RouteNode[] | null {
-        const result: RouteNode[] = [];
-        let scanNode: RouteNode = this;
+    getNodesByName(routeName: string): this[] | null {
+        const result: this[] = [];
+        let scanNode: this = this;
 
         const matched = routeName.split('.').every((name) => {
             let subNode = scanNode.nameMap.get(name);
@@ -399,7 +391,7 @@ export class RouteNode implements BasicRoute {
      * @param routeName
      * @returns RouteNode
      */
-    getNodeByName(routeName: string): RouteNode | null {
+    getNodeByName(routeName: string): this | null {
         let node = this.getNodesByName(routeName);
         if (node === null) return null;
         return node[node.length - 1];
