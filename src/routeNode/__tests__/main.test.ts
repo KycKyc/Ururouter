@@ -172,16 +172,18 @@ describe('RouteNode', function () {
         const node = getRoutes();
         // Building paths
         expect(node.buildState('home')).toEqual({
-            meta: { home: {} },
+            meta: { params: { home: {} } },
             name: 'home',
             params: {},
         });
 
         expect(node.buildState('users.view', { id: 1 })).toEqual({
             meta: {
-                users: {},
-                'users.view': {
-                    id: 'url',
+                params: {
+                    users: {},
+                    'users.view': {
+                        id: 'url',
+                    },
                 },
             },
             name: 'users.view',
@@ -199,9 +201,11 @@ describe('RouteNode', function () {
 
         expect(node.matchPath('/users/view/1')).toEqual({
             meta: {
-                users: {},
-                'users.view': {
-                    id: 'url',
+                params: {
+                    users: {},
+                    'users.view': {
+                        id: 'url',
+                    },
                 },
             },
             name: 'users.view',
@@ -257,8 +261,10 @@ describe('RouteNode', function () {
 
         expect(node.matchPath('/grand-parent?nickname=gran')).toEqual({
             meta: {
-                grandParent: {
-                    nickname: 'query',
+                params: {
+                    grandParent: {
+                        nickname: 'query',
+                    },
                 },
             },
             name: 'grandParent',
@@ -292,8 +298,10 @@ describe('RouteNode', function () {
             })
         ).toEqual({
             meta: {
-                grandParent: {
-                    nickname: 'query',
+                params: {
+                    grandParent: {
+                        nickname: 'query',
+                    },
                 },
             },
             name: 'grandParent',
@@ -306,14 +314,16 @@ describe('RouteNode', function () {
             })
         ).toEqual({
             meta: {
-                grandParent: {
-                    nickname: 'query',
-                },
-                'grandParent.parent': {
-                    name: 'query',
-                },
-                'grandParent.parent.child': {
-                    age: 'query',
+                params: {
+                    grandParent: {
+                        nickname: 'query',
+                    },
+                    'grandParent.parent': {
+                        name: 'query',
+                    },
+                    'grandParent.parent.child': {
+                        age: 'query',
+                    },
                 },
             },
             name: 'grandParent.parent.child',
@@ -488,8 +498,10 @@ describe('RouteNode', function () {
         const node = new RouteNode({ path: '?a', children: [new RouteNode({ name: 'route', path: '/path?b' })] });
         expect(node.matchPath('/path?a=1&b=2')).toEqual({
             meta: {
-                '': { a: 'query' },
-                route: { b: 'query' },
+                params: {
+                    '': { a: 'query' },
+                    route: { b: 'query' },
+                },
             },
             name: 'route',
             params: { a: '1', b: '2' },
@@ -497,8 +509,10 @@ describe('RouteNode', function () {
 
         expect(node.buildState('route', { b: '1' })).toEqual({
             meta: {
-                '': { a: 'query' },
-                route: { b: 'query' },
+                params: {
+                    '': { a: 'query' },
+                    route: { b: 'query' },
+                },
             },
             name: 'route',
             params: { b: '1' },
@@ -506,8 +520,10 @@ describe('RouteNode', function () {
 
         expect(node.buildState('route', { a: '1', b: '1' })).toEqual({
             meta: {
-                '': { a: 'query' },
-                route: { b: 'query' },
+                params: {
+                    '': { a: 'query' },
+                    route: { b: 'query' },
+                },
             },
             name: 'route',
             params: { a: '1', b: '1' },
@@ -880,19 +896,19 @@ describe('RouteNode', function () {
             expect(appNodes.matchPath('/')).toEqual({
                 name: 'en.default',
                 params: {},
-                meta: { en: {}, 'en.default': {} },
+                meta: { params: { en: {}, 'en.default': {} } },
             });
 
             expect(appNodes.matchPath('/user')).toEqual({
                 name: 'en.user.default',
                 params: {},
-                meta: { en: {}, 'en.user': {}, 'en.user.default': {} },
+                meta: { params: { en: {}, 'en.user': {}, 'en.user.default': {} } },
             });
 
             expect(appNodes.matchPath('/user/')).toEqual({
                 name: 'en.user.default',
                 params: {},
-                meta: { en: {}, 'en.user': {}, 'en.user.default': {} },
+                meta: { params: { en: {}, 'en.user': {}, 'en.user.default': {} } },
             });
 
             expect(appNodes.matchPath('/user/orders/', { strictTrailingSlash: true })).toEqual(null);
@@ -902,19 +918,19 @@ describe('RouteNode', function () {
             expect(appNodes.matchPath('/ko')).toEqual({
                 name: 'ko.default',
                 params: {},
-                meta: { ko: {}, 'ko.default': {} },
+                meta: { params: { ko: {}, 'ko.default': {} } },
             });
 
             expect(appNodes.matchPath('/ko/user/orders?page=1')).toEqual({
                 name: 'ko.user.orders',
                 params: { page: '1' },
-                meta: { ko: {}, 'ko.user': {}, 'ko.user.orders': {} },
+                meta: { params: { ko: {}, 'ko.user': {}, 'ko.user.orders': {} } },
             });
 
             expect(appNodes.matchPath('/ko/user/orders/?page=1')).toEqual({
                 name: 'ko.user.orders',
                 params: { page: '1' },
-                meta: { ko: {}, 'ko.user': {}, 'ko.user.orders': {} },
+                meta: { params: { ko: {}, 'ko.user': {}, 'ko.user.orders': {} } },
             });
 
             expect(
@@ -963,18 +979,22 @@ describe('RouteNode', function () {
                                 path: '/reviews',
                                 children: [createNode({ name: 'root', path: '/' }), createNode({ name: 'page', path: '/:page' })],
                             }),
+                            createNode({ name: 'orders', path: '/orders/' }),
                         ],
                     }),
-                    createNode({ name: 'orders', path: '/orders' }),
+                    createNode({ name: 'orders', path: '/orders/' }),
                 ],
             });
 
-            let result = tree.matchPath('/user/reviews', { strictTrailingSlash: true });
-            console.debug(result);
+            let result;
+            // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
+            // console.dir(result, { depth: null, breakLength: 140 });
+            result = tree.matchPath('/user/reviews', { strictTrailingSlash: true });
+            console.dir(result, { depth: null, breakLength: 140 });
             result = tree.matchPath('/user/reviews/', { strictTrailingSlash: true });
-            console.debug(result);
+            console.dir(result, { depth: null, breakLength: 140 });
             result = tree.matchPath('/user/reviews/1');
-            console.debug(result);
+            console.dir(result, { depth: null, breakLength: 140 });
         });
     });
 });

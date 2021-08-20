@@ -17,14 +17,10 @@ const optTrailingSlash = (source: string, strictTrailingSlash: boolean) => {
         return source;
     }
 
-    return source.replace(/\\\/$/, '') + '(?:\\/)?';
+    return source.replace(/\\\/$/, '');
 };
 
-const upToDelimiter = (source: string, delimiter?: boolean) => {
-    if (!delimiter) {
-        return source;
-    }
-
+const upToDelimiter = (source: string) => {
     return /(\/)$/.test(source) ? source : source + '(\\/|\\?|\\.|;|$)';
 };
 
@@ -160,7 +156,6 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
             ...opts,
         } as const;
 
-        // trailingSlash: falsy => non optional, truthy => optional
         const source = optTrailingSlash(this.source, options.strictTrailingSlash);
         // Check if exact match
         const match = this.urlTest(path, source + (this.hasQueryParams ? '(\\?.*$|$)' : '$'), options.caseSensitive, options.urlParamsEncoding);
@@ -187,17 +182,16 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
         return null;
     }
 
-    public partialTest(path: string, opts?: PathPartialTestOptions): TestMatch<T> {
+    public partialTest(path: string, opts?: PathTestOptions): TestMatch<T> {
         const options = {
             caseSensitive: false,
-            delimited: true,
+            strictTrailingSlash: false,
             ...this.options,
             ...opts,
         } as const;
 
         // Check if partial match (start of given path matches regex)
-        // trailingSlash: falsy => non optional, truthy => optional
-        const source = upToDelimiter(optTrailingSlash(this.source, false), options.delimited);
+        const source = upToDelimiter(optTrailingSlash(this.source, options.strictTrailingSlash));
         const match = this.urlTest(path, source, options.caseSensitive, options.urlParamsEncoding);
 
         if (!match) {

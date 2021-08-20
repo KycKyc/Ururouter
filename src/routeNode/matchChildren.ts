@@ -38,6 +38,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
                 caseSensitive,
                 queryParamFormats: options.queryParamFormats,
                 urlParamsEncoding: options.urlParamsEncoding,
+                strictTrailingSlash,
             });
 
             if (match == null) {
@@ -52,9 +53,9 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
                 trailingSlashMode,
             });
 
-            if (path.toLowerCase().indexOf(consumed.toLowerCase()) === 0) {
-                path = path.slice(consumed.length);
-            }
+            // if (path.toLowerCase().indexOf(consumed.toLowerCase()) === 0) {
+            path = path.slice(consumed.length);
+            // }
 
             // Remove url-query params owned by this node from the remaining path, all is left will be placed in the `querystring` variable.
             const { querystring } = omit(getSearch(path), node.parser!.queryParams, options.queryParamFormats);

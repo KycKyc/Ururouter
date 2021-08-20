@@ -15,13 +15,9 @@ export interface BuildOptions {
     urlParamsEncoding?: URLParamsEncodingType;
 }
 
-export interface MatchOptions {
+export interface MatchOptions extends BuildOptions {
     caseSensitive?: boolean;
-    trailingSlashMode?: TrailingSlashMode;
-    queryParamsMode?: QueryParamsMode;
-    queryParamFormats?: QueryParamFormats;
     strictTrailingSlash?: boolean;
-    urlParamsEncoding?: URLParamsEncodingType;
 }
 
 export interface MatchResponse {
@@ -58,6 +54,11 @@ export interface BasicRoute {
     [key: string]: any;
 }
 
+const st = /(.+?)(\/)(\?.*$|$)/gim;
+const standertizePath = (path: string) => {
+    return path.replace(st, '$1$2');
+};
+
 export class RouteNode implements BasicRoute {
     ['constructor']: new (init: Partial<BasicRoute>) => this;
     name: string;
@@ -88,6 +89,8 @@ export class RouteNode implements BasicRoute {
         this.absolute = /^~/.test(path);
         this.path = this.absolute ? path.slice(1) : path;
 
+        // remove trailing slash
+        // this.path = this.path ? standertizePath(this.path) : this.path;
         this.parser = this.path ? new Path(this.path) : null;
 
         this.nameMap = new Map();
@@ -313,11 +316,11 @@ export class RouteNode implements BasicRoute {
         }
     }
 
-    buildPath(routeName: string, params: Record<string, any> = {}, options: BuildOptions = {}): string {
-        const nodes = this.getNodesByName(routeName);
+    buildPath(name: string, params: Record<string, any> = {}, options: BuildOptions = {}): string {
+        const nodes = this.getNodesByName(name);
 
         if (!nodes) {
-            throw new Error(`[route-node][buildPath] "${routeName}" is not defined`);
+            throw new Error(`[route-node][buildPath] "${name}" is not defined`);
         }
 
         if (this.parser) {
@@ -346,36 +349,15 @@ export class RouteNode implements BasicRoute {
     }
 
     /**
-     * Getting the last child of this node with slash or question mark at the end.
-     * Used in `matchPath`, because match isn't going to return this child, we have to add it manualy into the result
-     *
-     * As example:
-     * Node `/ko`
-     *    Subnode: `/` <- return it
-     *
-     * @returns RouteNode
-     */
-    private findSlashChild(): RouteNode | undefined {
-        let slashChildren: RouteNode[] = [];
-        this.pathMap.forEach((node, path) => {
-            if (node.parser && /^\/(\?|$)/.test(path)) {
-                slashChildren.push(node);
-            }
-        });
-
-        return slashChildren[0];
-    }
-
-    /**
      * Get LIST of nodes by full name, like `en.user.orders`
-     * @param routeName
+     * @param name
      * @returns RouteNode[]
      */
-    getNodesByName(routeName: string): this[] | null {
+    getNodesByName(name: string): this[] | null {
         const result: this[] = [];
         let scanNode: this = this;
 
-        const matched = routeName.split('.').every((name) => {
+        const matched = name.split('.').every((name) => {
             let subNode = scanNode.nameMap.get(name);
             if (subNode === undefined) return false;
             result.push(subNode);
@@ -388,11 +370,11 @@ export class RouteNode implements BasicRoute {
 
     /**
      * get ONE node by full name of the node, like `en.user.orders`
-     * @param routeName
+     * @param name
      * @returns RouteNode
      */
-    getNodeByName(routeName: string): this | null {
-        let node = this.getNodesByName(routeName);
+    getNodeByName(name: string): this | null {
+        let node = this.getNodesByName(name);
         if (node === null) return null;
         return node[node.length - 1];
     }
@@ -402,41 +384,30 @@ export class RouteNode implements BasicRoute {
             path = '/';
         }
 
-        const match = this.getNodesMatchingPath(path, options);
+        const topLevelNodes = this.parser ? new Map([[this.path, this]]) : this.pathMap;
+        const match = matchChildren(topLevelNodes, path, options);
 
         if (!match) {
             return null;
         }
 
-        // const matchedNodes = match.nodes;
+        // Getting the last child of this node with "/" or "/?" at the end.
+        // To find the last node of the current match
+        if ((options.strictTrailingSlash && path.slice(-1) === '/') || !options.strictTrailingSlash) {
+            const lastNode = match.nodes[match.nodes.length - 1];
+            let slashChildren: RouteNode[] = [];
+            lastNode.pathMap.forEach((node, path) => {
+                if (node.parser && /^\/(\?|$)/.test(path)) {
+                    slashChildren.push(node);
+                }
+            });
 
-        // if match was absolute node.
-        // if (matchedNodes[0].absolute) {
-        //     const nodeParents = matchedNodes[0].getParentNodes();
-
-        //     matchedNodes.splice(0, 0, ...nodeParents);
-        // }
-
-        const lastNode = match.nodes[match.nodes.length - 1];
-        const lastNodeSlashChild = lastNode.findSlashChild();
-
-        if (lastNodeSlashChild) {
-            match.nodes.push(lastNodeSlashChild);
+            if (slashChildren[0]) {
+                match.nodes.push(slashChildren[0]);
+            }
         }
 
         return buildStateFromMatch(match);
-    }
-
-    private getNodesMatchingPath(path: string, options: MatchOptions): MatchResponse | null {
-        const topLevelNodes = this.parser ? new Map([[this.path, this]]) : this.pathMap;
-
-        const finalMatch = matchChildren(topLevelNodes, path, options);
-
-        // if (finalMatch && finalMatch.nodes.length === 1 && finalMatch.nodes[0].name === '') {
-        //     return null;
-        // }
-
-        return finalMatch;
     }
 }
 
