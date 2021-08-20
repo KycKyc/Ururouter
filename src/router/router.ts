@@ -1,9 +1,10 @@
-import type { BasicRoute } from 'routeNode';
+import type { BasicRoute, RouteNodeState } from 'routeNode';
 import { RouteNode } from 'routeNode';
 import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params } from 'types/base';
 import { constants, errorCodes } from './constants';
 
 export interface NavigationOptions {
+    /** replace in browserHistory, nothing else is affected ? */
     replace?: boolean;
     reload?: boolean;
     skipTransition?: boolean;
@@ -58,18 +59,23 @@ export type EnterFn<Dependencies extends DefaultDependencies = DefaultDependenci
 }) => State | Promise<State | void> | void;
 
 export interface Options {
-    defaultRoute?: string;
-    defaultParams?: Params;
-    strictTrailingSlash: boolean;
-    trailingSlashMode: TrailingSlashMode;
-    queryParamsMode: QueryParamsMode;
+    /** route name of 404 page */
+    notFoundRouteName?: string;
+    /** route name of default\fallback page, in case of undef route, alternative to 404 */
+    defaultRouteName?: string;
     autoCleanUp: boolean;
     allowNotFound: boolean;
     strongMatching: boolean;
     rewritePathOnMatch: boolean;
-    queryParamFormats?: QueryParamFormats;
-    caseSensitive: boolean;
-    urlParamsEncoding?: URLParamsEncodingType;
+
+    pathOptions: {
+        trailingSlashMode: TrailingSlashMode;
+        queryParamsMode: QueryParamsMode;
+        queryParamFormats?: QueryParamFormats;
+        urlParamsEncoding?: URLParamsEncodingType;
+        caseSensitive: boolean;
+        strictTrailingSlash: boolean;
+    };
 }
 type Diff<T, From> = T extends From ? never : T;
 type EventNames = typeof constants[keyof typeof constants];
@@ -110,7 +116,7 @@ export class NavigationError<CustomErrorCodes = never> extends Error {
     args?: any[];
     constructor(code: ErrorCodes<CustomErrorCodes>, message?: string, redirect?: { name: string; params: Params }, ...args: any[]) {
         super(message);
-        this.name = 'RoutingError';
+        this.name = 'NavigationError';
         this.code = code;
         if (redirect) {
             this.redirect = redirect;
@@ -124,19 +130,22 @@ export class NavigationError<CustomErrorCodes = never> extends Error {
 
 export class Router42<Dependencies, ErrorCodes = never> {
     options: Options = {
-        trailingSlashMode: 'default',
-        queryParamsMode: 'default',
-        strictTrailingSlash: false,
         autoCleanUp: true,
         allowNotFound: false,
         strongMatching: true,
         rewritePathOnMatch: true,
-        caseSensitive: false,
-        urlParamsEncoding: 'default',
-        queryParamFormats: {
-            arrayFormat: 'none',
-            booleanFormat: 'none',
-            nullFormat: 'default',
+
+        pathOptions: {
+            trailingSlashMode: 'default',
+            queryParamsMode: 'default',
+            queryParamFormats: {
+                arrayFormat: 'none',
+                booleanFormat: 'none',
+                nullFormat: 'default',
+            },
+            urlParamsEncoding: 'default',
+            caseSensitive: false,
+            strictTrailingSlash: false,
         },
     };
 
@@ -184,16 +193,36 @@ export class Router42<Dependencies, ErrorCodes = never> {
     //
     buildPath(name: string, params?: Params) {
         let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {};
-        const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options;
+        const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options.pathOptions;
 
         return this.rootNode.buildPath(name, { ...defaultParams, ...params }, { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding });
+    }
+
+    matchPath(path: string) {
+        const match = this.rootNode.matchPath(path, this.options.pathOptions);
+        if (match == null) {
+            return null;
+        }
+
+        const { name, params, meta } = match;
+        return this.makeState(name, params, {
+            params: meta.params,
+            navigation: {},
+            redirected: false,
+        });
+    }
+
+    isActive(name: string, params: Params, ignoreQueryParams = true) {
+        if (this.state === null) return false;
+        if (this.state.name === name) return this.areStatesEqual(this.makeState(name, params), this.state, ignoreQueryParams);
+        this.areStatesDescendants(this.makeState(name, params), this.state);
     }
 
     //
     // State management
     //
 
-    makeState(name: string, path: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>, forceId?: number): State {
+    makeState(name: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>, forceId?: number): State {
         let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {};
 
         return {
@@ -208,7 +237,7 @@ export class Router42<Dependencies, ErrorCodes = never> {
                       id: forceId === undefined ? ++this.stateId : forceId,
                   }
                 : undefined,
-            path,
+            path: this.buildPath(name, params),
         };
     }
 
@@ -240,23 +269,18 @@ export class Router42<Dependencies, ErrorCodes = never> {
         return this.rootNode.buildState(routeName, params);
     }
 
-    //makeNotFoundState
-
     //
     // Lifecycle
     //
-    start(startPathOrState: string | State, done?: DoneFn) {
-        if (typeof done !== 'function') {
-            done = () => {};
-        }
-
+    start(path: string): Promise<NavigationResult<Dependencies, ErrorCodes>> {
         if (this.started) {
-            done({ code: errorCodes.ROUTER_ALREADY_STARTED });
-            return this;
+            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTER_ALREADY_STARTED) } });
         }
 
         this.started = true;
         this.invokeEventListeners(constants.ROUTER_START);
+
+        return this.navigate({ path });
     }
 
     //
@@ -266,19 +290,43 @@ export class Router42<Dependencies, ErrorCodes = never> {
         this.transitionId += 1;
     }
 
-    navigate(routeName: string, routeParams: Params = {}, options: NavigationOptions = {}): Promise<NavigationResult<Dependencies, ErrorCodes>> {
+    navigate(
+        { path, nodeName, nodeParams = {} }: { path?: string; nodeName?: string; nodeParams?: Params },
+        options: NavigationOptions = {}
+    ): Promise<NavigationResult<Dependencies, ErrorCodes>> {
         if (!this.started) {
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTER_NOT_STARTED) } });
         }
 
-        const route = this.buildNodeState(routeName, routeParams);
+        let nodeState: RouteNodeState | null = null;
+        // get NodeState from path, merge params from provided path with params from nodeParams in case if user wanna provide them this way
+        if (path) {
+            let node = this.rootNode.matchPath(path, this.options.pathOptions);
+            if (node) {
+                nodeState = this.buildNodeState(node.name, { ...node.params, nodeParams });
+            }
+        }
+
+        if (nodeName) {
+            nodeState = this.buildNodeState(nodeName, nodeParams);
+        }
+
         // console.dir(route, { depth: null, breakLength: 140 });
-        if (!route) {
+        if (!nodeState) {
+            // navigate to 404
+            if (this.options.allowNotFound && this.options.notFoundRouteName) {
+                return this.navigate({ nodeName: this.options.notFoundRouteName, nodeParams: { path: path || nodeName } }, { replace: true, reload: true });
+            }
+
+            if (this.options.defaultRouteName) {
+                return this.navigate({ nodeName: this.options.defaultRouteName }, { replace: true, reload: true });
+            }
+
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTE_NOT_FOUND) } });
         }
 
-        const toState = this.makeState(route.name, this.buildPath(route.name, route.params), route.params, {
-            params: route.meta.params,
+        const toState = this.makeState(nodeState.name, nodeState.params, {
+            params: nodeState.meta.params,
             navigation: options,
             redirected: false,
         });
@@ -332,10 +380,10 @@ export class Router42<Dependencies, ErrorCodes = never> {
             let finalState = await chain;
             console.debug('Final state:', finalState);
             this.state = finalState;
-            this.invokeEventListeners(constants.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate });
+            this.invokeEventListeners(constants.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
         } catch (e) {
-            if (e.name === 'RoutingError') {
+            if (e.name === 'NavigationError') {
                 console.debug(`Expected error: ${e.code}`);
             } else {
                 console.debug('Unknown', e);
@@ -343,10 +391,10 @@ export class Router42<Dependencies, ErrorCodes = never> {
             }
 
             if (e.code === errorCodes.TRANSITION_REDIRECTED) {
-                return this.navigate(e.redirect.name, e.redirect.params, { force: true });
+                return this.navigate({ nodeName: e.redirect.name, nodeParams: e.redirect.params }, { force: true });
             }
 
-            this.invokeEventListeners(e.code, { fromState, toState, toDeactivate, toActivate, error: e });
+            this.invokeEventListeners(e.code, { fromState, toState, toDeactivate, toActivate, options, error: e });
             return { type: 'error', payload: { fromState, toState, toDeactivate, toActivate, error: e } };
         }
     }
