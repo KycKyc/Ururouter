@@ -195,7 +195,7 @@ describe('RouteNode', function () {
         const node = getRoutes();
         // Building paths
         expect(withoutMeta(node.matchPath('/users'))).toEqual({
-            name: 'users',
+            name: 'users.index',
             params: {},
         });
 
@@ -222,7 +222,14 @@ describe('RouteNode', function () {
                 new RouteNode({
                     name: 'grandParent',
                     path: '/grand-parent?nickname',
-                    children: [new RouteNode({ name: 'parent', path: '/parent?name', children: [new RouteNode({ name: 'child', path: '/child?age' })] })],
+                    children: [
+                        new RouteNode({ name: 'index', path: '/' }),
+                        new RouteNode({
+                            name: 'parent',
+                            path: '/parent?name',
+                            children: [new RouteNode({ name: 'index', path: '/' }), new RouteNode({ name: 'child', path: '/child?age' })],
+                        }),
+                    ],
                 }),
             ],
         });
@@ -255,7 +262,7 @@ describe('RouteNode', function () {
 
         // Matching
         expect(withoutMeta(node.matchPath('/grand-parent'))).toEqual({
-            name: 'grandParent',
+            name: 'grandParent.index',
             params: {},
         });
 
@@ -265,14 +272,15 @@ describe('RouteNode', function () {
                     grandParent: {
                         nickname: 'query',
                     },
+                    'grandParent.index': {},
                 },
             },
-            name: 'grandParent',
+            name: 'grandParent.index',
             params: { nickname: 'gran' },
         });
 
         expect(withoutMeta(node.matchPath('/grand-parent/parent?nickname=gran&name=maman%20man'))).toEqual({
-            name: 'grandParent.parent',
+            name: 'grandParent.parent.index',
             params: { nickname: 'gran', name: 'maman man' },
         });
 
@@ -302,9 +310,10 @@ describe('RouteNode', function () {
                     grandParent: {
                         nickname: 'query',
                     },
+                    'grandParent.index': {},
                 },
             },
-            name: 'grandParent',
+            name: 'grandParent.index',
             params: { nickname: 'gran', name: 'papa' },
         });
 
@@ -462,11 +471,11 @@ describe('RouteNode', function () {
         expect(withoutMeta(rootNode.matchPath('/users/list/', { strictTrailingSlash: true }))).toEqual({ name: 'users.list', params: {} });
 
         expect(withoutMeta(rootNode.matchPath('/'))).toEqual({
-            name: 'default',
+            name: 'index',
             params: {},
         });
 
-        expect(withoutMeta(rootNode.matchPath('', { strictTrailingSlash: false }))).toEqual({ name: 'default', params: {} });
+        expect(withoutMeta(rootNode.matchPath('', { strictTrailingSlash: false }))).toEqual({ name: 'index', params: {} });
 
         expect(rootNode.matchPath('', { strictTrailingSlash: true })).toBeNull();
     });
@@ -735,13 +744,19 @@ describe('RouteNode', function () {
                 new RouteNode({
                     name: 'a',
                     path: '/',
-                    children: [new RouteNode({ name: 'b', path: '/', children: [new RouteNode({ name: 'c', path: ':bar' })] })],
+                    children: [
+                        new RouteNode({
+                            name: 'b',
+                            path: '/',
+                            children: [new RouteNode({ name: 'index', path: '/' }), new RouteNode({ name: 'c', path: ':bar' })],
+                        }),
+                    ],
                 }),
             ],
         });
 
         expect(withoutMeta(node.matchPath('/'))).toEqual({
-            name: 'a.b',
+            name: 'a.b.index',
             params: {},
         });
 
@@ -977,7 +992,7 @@ describe('RouteNode', function () {
                             createNode({
                                 name: 'reviews',
                                 path: '/reviews',
-                                children: [createNode({ name: 'root', path: '/' }), createNode({ name: 'page', path: '/:page' })],
+                                children: [createNode({ name: 'index', path: '/' }), createNode({ name: 'page', path: '/:page' })],
                             }),
                             createNode({ name: 'orders', path: '/orders/' }),
                         ],
@@ -989,12 +1004,17 @@ describe('RouteNode', function () {
             let result;
             // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
             // console.dir(result, { depth: null, breakLength: 140 });
-            result = tree.matchPath('/user/reviews', { strictTrailingSlash: true });
+            result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
             console.dir(result, { depth: null, breakLength: 140 });
-            result = tree.matchPath('/user/reviews/', { strictTrailingSlash: true });
+            result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
             console.dir(result, { depth: null, breakLength: 140 });
             result = tree.matchPath('/user/reviews/1');
             console.dir(result, { depth: null, breakLength: 140 });
+
+            let _path = tree.buildPath('user.reviews.index', {}, { trailingSlashMode: 'never' });
+            console.dir(_path);
+            _path = tree.buildPath('user.reviews.index', {});
+            console.dir(_path);
         });
     });
 });
@@ -1004,10 +1024,14 @@ function getRoutes(trailingSlash?: boolean) {
     const usersNode = new RouteNode({
         name: 'users',
         path: '/users',
-        children: [new RouteNode({ name: 'list', path: '/list' + suffix }), new RouteNode({ name: 'view', path: '/view/:id' + suffix })],
+        children: [
+            new RouteNode({ name: 'index', path: '/' }),
+            new RouteNode({ name: 'list', path: '/list' + suffix }),
+            new RouteNode({ name: 'view', path: '/view/:id' + suffix }),
+        ],
     });
 
-    return new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' + suffix }), new RouteNode({ name: 'default', path: '/' }), usersNode] });
+    return new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' + suffix }), new RouteNode({ name: 'index', path: '/' }), usersNode] });
 }
 
 function getRoutesWithSplat() {

@@ -3,8 +3,10 @@ import type { trailingSlashMode as tSM } from 'pathParser';
 import { omit, parse } from 'search-params';
 import { MatchOptions, MatchResponse, RouteNode } from './RouteNode';
 
-const getPath = (path: string): string => path.split('?')[0];
-const getSearch = (path: string): string => path.split('?')[1] || '';
+const splitPath = (path: string): [string, string] => {
+    let result = path.split('?');
+    return [result[0], result[1] || ''];
+};
 
 const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: MatchOptions = {}) => {
     const { queryParamsMode = 'default', strictTrailingSlash = false, caseSensitive = false } = options;
@@ -13,18 +15,22 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
         params: {},
     };
 
+    let search: string;
+    [path, search] = splitPath(path);
+
     let processNextNodes = true;
     let consumed: string | undefined;
     while (processNextNodes) {
         processNextNodes = false;
-        let i = nodes.entries();
+        let i = nodes.values();
         let result = i.next();
         while (!result.done) {
-            let node = result.value[1];
+            let node = result.value;
 
             /////
             let match: TestMatch | null = null;
-            let trailingSlashMode: tSM = node.pathMap.size === 0 ? (strictTrailingSlash ? 'default' : 'never') : 'default';
+            let noChildren = node.pathMap.size === 0;
+            let trailingSlashMode: tSM = noChildren ? (strictTrailingSlash ? 'default' : 'never') : 'default';
             if (consumed === '/') {
                 if (node.path[0] === '/' && path[0] !== '/') {
                     path = '/' + path;
@@ -34,7 +40,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
             }
 
             // Partially match remaining path segment
-            match = node.parser!.partialTest(path, {
+            match = node.parser!.partialTest(search ? `${path}?${search}` : path, {
                 caseSensitive,
                 queryParamFormats: options.queryParamFormats,
                 urlParamsEncoding: options.urlParamsEncoding,
@@ -46,42 +52,39 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
                 continue;
             }
 
-            // Getting consumed segment from path
+            // Save our matched node annd params
+            currentMatch.nodes.push(node);
+            Object.keys(match).forEach((param) => (currentMatch.params[param] = match![param]));
+
+            // Getting consumed segment from a path
             consumed = node.parser!.build(match, {
                 ignoreSearch: true,
                 urlParamsEncoding: options.urlParamsEncoding,
                 trailingSlashMode,
             });
 
-            // if (path.toLowerCase().indexOf(consumed.toLowerCase()) === 0) {
-            path = path.slice(consumed.length);
-            // }
-
+            // remove consumed segment from a path
             // Remove url-query params owned by this node from the remaining path, all is left will be placed in the `querystring` variable.
-            const { querystring } = omit(getSearch(path), node.parser!.queryParams, options.queryParamFormats);
-
-            path = getPath(path);
+            path = path.slice(consumed.length);
+            search = omit(search, node.parser!.queryParams, options.queryParamFormats).querystring;
 
             if (!strictTrailingSlash && path === '/' && !/\/$/.test(consumed)) {
                 path = '';
             }
 
-            path += querystring ? `?${querystring}` : '';
+            if (!strictTrailingSlash && !noChildren && path === '') {
+                path = '/';
+            }
 
-            // Save node
-            currentMatch.nodes.push(node);
-            // Store matched params from this node
-            Object.keys(match).forEach((param) => (currentMatch.params[param] = match![param]));
-
-            if (!path.length) {
-                // fully matched
+            // Fully matched, withdraw
+            if (!path.length && !search.length) {
                 return currentMatch;
             }
 
-            if (queryParamsMode !== 'strict' && path.indexOf('?') === 0) {
-                // Non strict mode
-                // And some unmatched queryParams is left, save them
-                const remainingQueryParams = parse(path.slice(1), options.queryParamFormats) as any;
+            // Path is matched, search params are not,
+            // non strict mode and some unmatched queryParams is left, save them into a match object
+            if (queryParamsMode !== 'strict' && path.length === 0 && search.length !== 0) {
+                const remainingQueryParams = parse(search, options.queryParamFormats) as any;
 
                 Object.keys(remainingQueryParams).forEach((name) => (currentMatch.params[name] = remainingQueryParams[name]));
 

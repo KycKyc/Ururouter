@@ -391,22 +391,6 @@ export class RouteNode implements BasicRoute {
             return null;
         }
 
-        // Getting the last child of this node with "/" or "/?" at the end.
-        // To find the last node of the current match
-        if ((options.strictTrailingSlash && path.slice(-1) === '/') || !options.strictTrailingSlash) {
-            const lastNode = match.nodes[match.nodes.length - 1];
-            let slashChildren: RouteNode[] = [];
-            lastNode.pathMap.forEach((node, path) => {
-                if (node.parser && /^\/(\?|$)/.test(path)) {
-                    slashChildren.push(node);
-                }
-            });
-
-            if (slashChildren[0]) {
-                match.nodes.push(slashChildren[0]);
-            }
-        }
-
         return buildStateFromMatch(match);
     }
 }
