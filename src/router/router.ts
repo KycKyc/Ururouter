@@ -280,7 +280,7 @@ export class Router42<Dependencies, ErrorCodes = never> {
         this.started = true;
         this.invokeEventListeners(constants.ROUTER_START);
 
-        return this.navigate({ path });
+        return this.navigateByPath(path);
     }
 
     //
@@ -290,36 +290,40 @@ export class Router42<Dependencies, ErrorCodes = never> {
         this.transitionId += 1;
     }
 
-    navigate(
-        { path, nodeName, nodeParams = {} }: { path?: string; nodeName?: string; nodeParams?: Params },
-        options: NavigationOptions = {}
-    ): Promise<NavigationResult<Dependencies, ErrorCodes>> {
+    /**
+     * Do not like name-based navigation?
+     * Use this, url-based navigation.
+     * But it's less performant, cause it will do additional trip through nodes.
+     * @param path Just url, real plain url, without tokens (aka `:page`, `*spat` or whatever)
+     * @param params Params to override, or additional params to add
+     * @param options Navigation options
+     * @returns
+     */
+    navigateByPath(path: string, params: Params = {}, options: NavigationOptions = {}) {
+        let node = this.rootNode.matchPath(path, this.options.pathOptions);
+        return this.navigate(node?.name || path, { ...(node?.params || {}), params }, options);
+    }
+
+    navigate(name?: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<Dependencies, ErrorCodes>> {
         if (!this.started) {
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTER_NOT_STARTED) } });
         }
 
         let nodeState: RouteNodeState | null = null;
-        // get NodeState from path, merge params from provided path with params from nodeParams in case if user wanna provide them this way
-        if (path) {
-            let node = this.rootNode.matchPath(path, this.options.pathOptions);
-            if (node) {
-                nodeState = this.buildNodeState(node.name, { ...node.params, nodeParams });
-            }
-        }
 
-        if (nodeName) {
-            nodeState = this.buildNodeState(nodeName, nodeParams);
+        if (name) {
+            nodeState = this.buildNodeState(name, params);
         }
 
         // console.dir(route, { depth: null, breakLength: 140 });
         if (!nodeState) {
             // navigate to 404
             if (this.options.allowNotFound && this.options.notFoundRouteName) {
-                return this.navigate({ nodeName: this.options.notFoundRouteName, nodeParams: { path: path || nodeName } }, { replace: true, reload: true });
+                return this.navigate(this.options.notFoundRouteName, { path: name }, { replace: true, reload: true });
             }
 
             if (this.options.defaultRouteName) {
-                return this.navigate({ nodeName: this.options.defaultRouteName }, { replace: true, reload: true });
+                return this.navigate(this.options.defaultRouteName, { replace: true, reload: true });
             }
 
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTE_NOT_FOUND) } });
@@ -349,6 +353,26 @@ export class Router42<Dependencies, ErrorCodes = never> {
         options: NavigationOptions
     ): Promise<NavigationResult<Dependencies, ErrorCodes>> {
         let canceled = () => id !== this.transitionId;
+        const check: { (result: void | State): State; (result: [State, any]): [State, any] } = (result: any) => {
+            if (canceled()) {
+                throw new NavigationError(errorCodes.TRANSITION_CANCELLED);
+            }
+
+            if (result instanceof Array) {
+                if (!result[0]) {
+                    result[0] = toState;
+                }
+
+                return result;
+            }
+
+            if (!result) {
+                result = toState;
+            }
+
+            return result;
+        };
+
         let { toDeactivate, toActivate } = this.transitionPath(fromState, toState);
         let chain: Promise<State> = Promise.resolve(toState);
         for (let node of toActivate) {
@@ -360,25 +384,14 @@ export class Router42<Dependencies, ErrorCodes = never> {
             if (node.onEnter) {
                 let ent = node.onEnter;
                 chain = Promise.all([chain, asyncFn])
-                    .then((values) => ent({ node, toState: values[0], fromState, dependencies: this.dependencies, asyncResult: values[1] }))
-                    .then((state) => {
-                        if (canceled()) {
-                            throw new NavigationError(errorCodes.TRANSITION_CANCELLED);
-                        }
-
-                        console.debug('toState passthrough');
-                        if (!state) {
-                            return toState;
-                        }
-
-                        return state;
-                    });
+                    .then(check) // Check is transition was canceled after async call
+                    .then((result) => ent({ node, toState: result[0], fromState, dependencies: this.dependencies, asyncResult: result[1] }))
+                    .then<State>(check); // Check is transition was canceled after onEnter, usefull if onEnter returns Promise. (will take time to execute)
             }
         }
 
         try {
             let finalState = await chain;
-            console.debug('Final state:', finalState);
             this.state = finalState;
             this.invokeEventListeners(constants.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
@@ -391,7 +404,7 @@ export class Router42<Dependencies, ErrorCodes = never> {
             }
 
             if (e.code === errorCodes.TRANSITION_REDIRECTED) {
-                return this.navigate({ nodeName: e.redirect.name, nodeParams: e.redirect.params }, { force: true });
+                return this.navigate(e.redirect.name, e.redirect.params, { force: true });
             }
 
             this.invokeEventListeners(e.code, { fromState, toState, toDeactivate, toActivate, options, error: e });

@@ -47,26 +47,23 @@ describe('router42', () => {
         router.navigate('user.review', { page: 2 });
     });
 
-    it('test', () => {
+    it('test', async () => {
         const router = new Router42([
             {
                 name: 'user',
                 asyncRequests: () => {
-                    console.debug('async call: user');
                     return new Promise((resolve) => {
                         setTimeout(() => {
-                            resolve('user');
+                            resolve('user(async)');
                         }, 2000);
                     });
                 },
-                onEnter: ({ asyncResult: async }) => {
-                    console.debug(`on Enter: ${async}`);
-                    return new Promise((resolve) => {
+                onEnter: async ({ asyncResult }) => {
+                    expect(asyncResult).toBe('user(async)');
+                    await new Promise((resolve) => {
                         setTimeout(() => {
                             resolve('user');
-                        }, 1000);
-                    }).then((result: any) => {
-                        console.debug(`on Enter, resolved: ${result}`);
+                        }, 5000);
                     });
                 },
                 path: '/user',
@@ -75,20 +72,37 @@ describe('router42', () => {
                         name: 'orders',
                         path: '/orders/:id',
                         asyncRequests: () => {
-                            console.debug('async call: orders');
                             return new Promise((resolve) => {
                                 setTimeout(() => {
-                                    resolve('user/orders');
+                                    resolve('user.orders(async)');
                                 }, 500);
                             });
                         },
-                        onEnter: ({ asyncResult: async }) => {
-                            console.debug(`on Enter: ${async}`);
+                        onEnter: ({ asyncResult }) => {
+                            expect(asyncResult).toBe('user.orders(async)');
                         },
                     },
                     { name: 'profile', path: '/:profile?searchOne' },
                     { name: 'auctions', path: '/auctions' },
-                    { name: 'review', path: '/review/:page' },
+                    {
+                        name: 'review',
+                        path: '/review/:page',
+                        asyncRequests: () => {
+                            return new Promise((resolve) => {
+                                setTimeout(() => {
+                                    resolve('user.review(async)');
+                                }, 500);
+                            });
+                        },
+                        onEnter: async ({ asyncResult }) => {
+                            expect(asyncResult).toBe('user.review(async)');
+                            await new Promise((resolve) => {
+                                setTimeout(() => {
+                                    resolve('user.review');
+                                }, 1000);
+                            });
+                        },
+                    },
                 ],
                 canActivate: () => {},
             },
@@ -96,6 +110,7 @@ describe('router42', () => {
                 name: 'orders',
                 path: '/orders',
                 children: [
+                    { name: 'index', path: '/' },
                     { name: 'top', path: '/top/:id' },
                     { name: 'statistics', path: '/statistics?type' },
                     { name: 'drop', path: '/drop' },
@@ -103,11 +118,12 @@ describe('router42', () => {
             },
         ]);
 
-        router.start('/orders');
-        router.navigate('user.orders', { id: 1 });
-        router.navigate('user.review', { page: 1 });
-        return new Promise((resolve) => {
-            setTimeout(resolve, 4000);
-        });
+        await router.start('/orders');
+        let wait1 = router.navigate('user.orders', { id: 1 });
+        let wait2 = router.navigate('user.review', { page: 1 });
+        const results = await Promise.all([wait1, wait2]);
+        expect(results[0].type === 'error').toBeTruthy();
+        expect(results[0].payload.error?.code === 'TRANSITION_CANCELLED').toBeTruthy();
+        expect(results[1].type === 'success').toBeTruthy();
     });
 });

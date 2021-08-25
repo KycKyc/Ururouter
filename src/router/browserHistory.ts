@@ -40,7 +40,7 @@ class BrowserHistory<Dependencies, ErrorCodes> {
 
         if (this.router.state && this.router.areStatesEqual(state, this.router.state, false)) return;
 
-        this.router.navigate({ nodeName: state.name, nodeParams: state.params });
+        this.router.navigate(state.name, state.params);
     }
 
     private updateState(toState: State | null, url: string, replace: boolean) {
