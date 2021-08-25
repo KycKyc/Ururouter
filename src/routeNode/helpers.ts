@@ -116,13 +116,10 @@ export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, an
 
 export const getPathFromNodes = (nodes: RouteNode[]): string | null => (nodes ? nodes.map((node) => node.path).join('') : null);
 
-export const sortedPathMap = (originalMap: Map<string, RouteNode>): Map<string, RouteNode> => {
+export const sortedNameMap = (originalMap: Map<string, RouteNode>): Map<string, RouteNode> => {
     let sortedArray = [];
-    let iterator = originalMap.entries();
-    let entry = iterator.next();
-    while (!entry.done) {
-        sortedArray.push(entry.value);
-        entry = iterator.next();
+    for (let pair of originalMap.entries()) {
+        sortedArray.push(pair);
     }
 
     sortedArray.sort(sortFunc([...sortedArray]));

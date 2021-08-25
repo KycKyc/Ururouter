@@ -1,7 +1,7 @@
 import { Path, URLParamsEncodingType } from 'pathParser';
 import { IOptions as QueryParamFormats } from 'search-params';
 
-import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedPathMap } from './helpers';
+import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap } from './helpers';
 import matchChildren from './matchChildren';
 
 export type Callback = (node: Partial<RouteNode> & { name: string }) => void;
@@ -54,10 +54,7 @@ export interface BasicRoute {
     [key: string]: any;
 }
 
-const st = /(.+?)(\/)(\?.*$|$)/gim;
-const standertizePath = (path: string) => {
-    return path.replace(st, '$1$2');
-};
+const trailingSlash = /(.+?)(\/)(\?.*$|$)/gim;
 
 export class RouteNode implements BasicRoute {
     ['constructor']: new (init: Partial<BasicRoute>) => this;
@@ -67,7 +64,7 @@ export class RouteNode implements BasicRoute {
     absolute: boolean;
     parser: Path | null;
     nameMap: Map<string, this>;
-    pathMap: Map<string, this>;
+    // pathMap: Map<string, this>;
     parent?: RouteNode;
 
     constructor({ name = '', path = '', children = [], options = {}, ...augments }: Partial<BasicRoute> = {}) {
@@ -94,7 +91,7 @@ export class RouteNode implements BasicRoute {
         this.parser = this.path ? new Path(this.path) : null;
 
         this.nameMap = new Map();
-        this.pathMap = new Map();
+        // this.pathMap = new Map();
 
         if (augments) {
             Object.assign(this, augments);
@@ -198,6 +195,13 @@ export class RouteNode implements BasicRoute {
     }
 
     private addRouteNode(route: this, sort: boolean = true): this {
+        // If node have trailing slash, remove it, cause parents can't have trailing slashes.
+        // Only exception is `/` path
+        if (trailingSlash.test(this.path)) {
+            this.path = this.path.replace(trailingSlash, '$1$3');
+            this.parser = this.path ? new Path(this.path) : null;
+        }
+
         let rootNode = this.getRootNode();
 
         // Move absolute node under control of `rootNode`
@@ -209,24 +213,24 @@ export class RouteNode implements BasicRoute {
         // `route` have childs, some of them are absolute ?
         // move them under control of `rootNode`
         const nameIter = route.nameMap.entries();
-        const pathIter = route.pathMap.entries();
+        // const pathIter = route.pathMap.entries();
         let nameResult = nameIter.next();
-        let pathResult = pathIter.next();
+        // let pathResult = pathIter.next();
         // After moving all nodes, we should sort them, only once, to save resources
         let sortAfter = false;
         // These maps should be in sync, checking one is enough
         while (!nameResult.done) {
             let [childName, childNode] = nameResult.value;
-            let childPath = pathResult.value[0];
+            // let childPath = pathResult.value[0];
             if (childNode.absolute) {
                 route.nameMap.delete(childName);
-                route.pathMap.delete(childPath);
+                // route.pathMap.delete(childPath);
                 rootNode.addRouteNode(childNode, false);
                 sortAfter = true;
             }
 
             nameResult = nameIter.next();
-            pathResult = pathIter.next();
+            // pathResult = pathIter.next();
         }
 
         if (sortAfter) {
@@ -242,17 +246,18 @@ export class RouteNode implements BasicRoute {
             }
 
             // Check if path already defined
-            if (this.pathMap.has(route.path) && this.pathMap.get(route.path) !== route) {
-                throw new Error(`Path "${route.path}" is already defined in this node: "${this.name}", will not overwrite`);
-            }
+            // if (this.pathMap.has(route.path) && this.pathMap.get(route.path) !== route) {
+            //     throw new Error(`Path "${route.path}" is already defined in this node: "${this.name}", will not overwrite`);
+            // }
 
-            if (this.nameMap.get(route.name) === route && this.pathMap.get(route.path) === route) {
+            // if (this.nameMap.get(route.name) === route && this.pathMap.get(route.path) === route) {
+            if (this.nameMap.get(route.name) === route) {
                 // Already defined, no point in redefining the same node on the same name and path
                 return this;
             }
 
             this.nameMap.set(route.name, route);
-            this.pathMap.set(route.path, route);
+            // this.pathMap.set(route.path, route);
             route.parent = this;
 
             // Update treeNames
@@ -301,18 +306,14 @@ export class RouteNode implements BasicRoute {
     }
 
     sortChildren() {
-        if (!this.pathMap.size) return;
-        this.pathMap = sortedPathMap(this.pathMap) as Map<string, this>;
+        if (!this.nameMap.size) return;
+        this.nameMap = sortedNameMap(this.nameMap) as Map<string, this>;
     }
 
     sortDescendants() {
         this.sortChildren();
-        let i = this.pathMap.values();
-        let result = i.next();
-        while (!result.done) {
-            let childNope = result.value;
-            childNope.sortDescendants();
-            result = i.next();
+        for (let childNode of this.nameMap.values()) {
+            childNode.sortDescendants();
         }
     }
 
@@ -384,7 +385,7 @@ export class RouteNode implements BasicRoute {
             path = '/';
         }
 
-        const topLevelNodes = this.parser ? new Map([[this.path, this]]) : this.pathMap;
+        const topLevelNodes = this.parser ? new Map([[this.name, this]]) : this.nameMap;
         const match = matchChildren(topLevelNodes, path, options);
 
         if (!match) {
