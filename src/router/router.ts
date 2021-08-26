@@ -56,7 +56,8 @@ export type EnterFn<Dependencies extends DefaultDependencies = DefaultDependenci
     fromState: State | null;
     dependencies?: Dependencies;
     asyncResult?: any;
-}) => State | Promise<State | void> | void;
+    passthrough?: any;
+}) => Promise<{ state?: State | undefined; passthrough?: any } | void> | { state?: State | undefined; passthrough?: any } | void;
 
 export interface Options {
     /** route name of 404 page */
@@ -353,28 +354,32 @@ export class Router42<Dependencies, ErrorCodes = never> {
         options: NavigationOptions
     ): Promise<NavigationResult<Dependencies, ErrorCodes>> {
         let canceled = () => id !== this.transitionId;
-        const check: { (result: void | State): State; (result: [State, any]): [State, any] } = (result: any) => {
+        const afterAsync = (result: [{ state?: void | State; passthrough?: any }, any]) => {
             if (canceled()) {
                 throw new NavigationError(errorCodes.TRANSITION_CANCELLED);
             }
 
-            if (result instanceof Array) {
-                if (!result[0]) {
-                    result[0] = toState;
+            if (!result[0].state) {
+                result[0].state = toState;
                 }
 
-                return result;
+            return { state: result[0].state, passthrough: result[0].passthrough, asyncResult: result[1] };
+        };
+
+        const afterOnEnter = ({ state, passthrough }: { state?: State | undefined; passthrough?: any } | void = {}) => {
+            if (canceled()) {
+                throw new NavigationError(errorCodes.TRANSITION_CANCELLED);
             }
 
-            if (!result) {
-                result = toState;
+            if (!state) {
+                state = toState;
             }
 
-            return result;
+            return { state, passthrough };
         };
 
         let { toDeactivate, toActivate } = this.transitionPath(fromState, toState);
-        let chain: Promise<State> = Promise.resolve(toState);
+        let chain: Promise<{ state: State; passthrough: any }> = Promise.resolve({ state: toState, passthrough: undefined });
         for (let node of toActivate) {
             let asyncFn = null;
             if (node.asyncRequests) {
@@ -384,15 +389,24 @@ export class Router42<Dependencies, ErrorCodes = never> {
             if (node.onEnter) {
                 let ent = node.onEnter;
                 chain = Promise.all([chain, asyncFn])
-                    .then(check) // Check is transition was canceled after async call
-                    .then((result) => ent({ node, toState: result[0], fromState, dependencies: this.dependencies, asyncResult: result[1] }))
-                    .then<State>(check); // Check is transition was canceled after onEnter, usefull if onEnter returns Promise. (will take time to execute)
+                    .then(afterAsync) // Check is transition was canceled after async call
+                    .then((result) =>
+                        ent({
+                            node,
+                            toState: result.state,
+                            fromState,
+                            dependencies: this.dependencies,
+                            asyncResult: result.asyncResult,
+                            passthrough: result.passthrough,
+                        })
+                    )
+                    .then(afterOnEnter); // Check is transition was canceled after onEnter, usefull if onEnter returns Promise. (will take time to execute)
             }
         }
 
         try {
-            let finalState = await chain;
-            this.state = finalState;
+            let { state, passthrough } = await chain;
+            this.state = toState = state;
             this.invokeEventListeners(constants.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
         } catch (e) {

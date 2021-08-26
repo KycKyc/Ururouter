@@ -1,3 +1,4 @@
+import { RouteNode } from 'routeNode';
 import { Router42, NavigationError } from '../router';
 
 describe('router42', () => {
@@ -18,7 +19,7 @@ describe('router42', () => {
         router.navigate('user.profile', { profile: 'KycKyc', searchOne: ['kek', 'pek'] });
     });
 
-    it('transitionPath', () => {
+    it('transitionPath', async () => {
         const router = new Router42([
             {
                 name: 'user',
@@ -35,6 +36,7 @@ describe('router42', () => {
                 name: 'orders',
                 path: '/orders',
                 children: [
+                    { name: 'index', path: '/' },
                     { name: 'top', path: '/top/:id' },
                     { name: 'statistics', path: '/statistics?type' },
                     { name: 'drop', path: '/drop' },
@@ -42,12 +44,22 @@ describe('router42', () => {
             },
         ]);
 
-        router.start('/orders');
-        router.navigate('user.review', { page: 1 });
-        router.navigate('user.review', { page: 2 });
+        await router.start('/orders');
+        let result = await router.navigate('user.review', { page: 1 });
+        expect(result.type).toBe('success');
+        expect(result.payload.toState?.params.page).toBe(1);
+        result = await router.navigate('user.review', { page: 2 });
+        expect(result.type).toBe('success');
+        expect(result.payload.toState?.params.page).toBe(2);
+        expect(result.payload.fromState?.params.page).toBe(1);
+        expect(result.payload.toDeactivate!.length).toBe(1);
+        expect(result.payload.toActivate!.length).toBe(1);
+        expect(result.payload.toDeactivate![0].name).toBe('review');
+        expect(result.payload.toDeactivate![0].name).toBe('review');
+        expect(result.payload.toActivate![0].name).toBe('review');
     });
 
-    it('test', async () => {
+    it('transition should be canceled', async () => {
         const router = new Router42([
             {
                 name: 'user',
@@ -65,6 +77,8 @@ describe('router42', () => {
                             resolve('user');
                         }, 5000);
                     });
+
+                    return { passthrough: 'kek' };
                 },
                 path: '/user',
                 children: [
@@ -78,7 +92,8 @@ describe('router42', () => {
                                 }, 500);
                             });
                         },
-                        onEnter: ({ asyncResult }) => {
+                        onEnter: ({ asyncResult, passthrough }) => {
+                            console.debug(passthrough);
                             expect(asyncResult).toBe('user.orders(async)');
                         },
                     },
@@ -94,7 +109,8 @@ describe('router42', () => {
                                 }, 500);
                             });
                         },
-                        onEnter: async ({ asyncResult }) => {
+                        onEnter: async ({ asyncResult, passthrough }) => {
+                            expect(asyncResult).toBe('kek');
                             expect(asyncResult).toBe('user.review(async)');
                             await new Promise((resolve) => {
                                 setTimeout(() => {
@@ -126,4 +142,50 @@ describe('router42', () => {
         expect(results[0].payload.error?.code === 'TRANSITION_CANCELLED').toBeTruthy();
         expect(results[1].type === 'success').toBeTruthy();
     });
+
+    it('404', () => {});
 });
+
+const createRouter = () => {
+    const mainNodes = [
+        new RouteNode({ name: 'index', path: '/' }),
+        new RouteNode({
+            name: 'item',
+            path: '/:item',
+            children: [
+                { name: 'index', path: '/' },
+                { name: 'stats', path: '/statistics' },
+                { name: 'drop', path: '/drop' },
+            ],
+        }),
+        new RouteNode({
+            name: 'profile',
+            path: '/:name',
+            children: [
+                { name: 'index', path: '/' },
+                { name: 'auctions', path: '/auctions' },
+                { name: 'transactions', path: '/transactions' },
+                {
+                    name: 'reviews',
+                    path: '/reviews',
+                    children: [
+                        { name: 'index', path: '/' },
+                        { name: 'page', path: '/:page' },
+                    ],
+                },
+            ],
+        }),
+        new RouteNode({
+            name: 'auctions',
+            path: '/auctions?type',
+            children: [
+                { name: 'index', path: '/' },
+                { name: 'recent', path: '/recent' },
+                { name: 'search', path: '/search' },
+            ],
+        }),
+        new RouteNode({ name: 'notFound', path: '/404' }),
+    ];
+
+    return new Router42([{ children: [] }]);
+};

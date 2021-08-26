@@ -47,8 +47,8 @@ export interface RouteNodeOptions {
 }
 
 export interface BasicRoute {
-    name: string;
-    path: string;
+    name?: string;
+    path?: string;
     children?: BasicRoute[];
     options?: RouteNodeOptions;
     [key: string]: any;
