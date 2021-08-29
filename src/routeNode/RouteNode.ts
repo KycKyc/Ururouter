@@ -40,44 +40,48 @@ export interface RouteNodeState {
 }
 
 export interface RouteNodeOptions {
-    finalSort?: boolean;
     onAdd?: Callback;
     parent?: RouteNode;
     sort?: boolean;
 }
 
-export interface BasicRoute {
-    name?: string;
-    path?: string;
-    children?: BasicRoute[];
-    options?: RouteNodeOptions;
-    [key: string]: any;
-}
+export type BasicRouteSignature =
+    | {
+          name: string;
+          path: string;
+          children?: BasicRouteSignature[];
+          options?: RouteNodeOptions;
+      }
+    | {
+          name?: string;
+          path?: string;
+          children: BasicRouteSignature[];
+          options?: RouteNodeOptions;
+      };
 
 const trailingSlash = /(.+?)(\/)(\?.*$|$)/gim;
 
-export class RouteNode implements BasicRoute {
-    ['constructor']: new (init: Partial<BasicRoute>) => this;
+export class RouteNode {
+    ['constructor']: new (signature: BasicRouteSignature, __parentNames?: string[]) => this;
     name: string;
     treeNames: string[];
     path: string;
     absolute: boolean;
     parser: Path | null;
     nameMap: Map<string, this>;
-    // pathMap: Map<string, this>;
     parent?: RouteNode;
 
-    constructor({ name = '', path = '', children = [], options = {}, ...augments }: Partial<BasicRoute> = {}) {
+    constructor({ name = '', path = '', children = [], options = {}, ...augments }: BasicRouteSignature, __parentNames?: string[]) {
         this.name = name;
 
         // Small hack, we are doing it here to properly inherit parrent name in case if we are building nodes from one large object.
         // Otherwise we will end with `parent.child` -> `child.subchild` -> `subchild.subsubchild` etc.
         this.treeNames = [];
-        if (augments['__parentNames'] instanceof Array) {
-            if (augments['__parentNames'].length === 0) {
+        if (__parentNames instanceof Array) {
+            if (__parentNames.length === 0) {
                 this.treeNames.push(this.name);
             } else {
-                augments['__parentNames'].forEach((name) => {
+                __parentNames.forEach((name) => {
                     this.treeNames.push(`${name}.${this.name}`);
                 });
             }
@@ -97,11 +101,7 @@ export class RouteNode implements BasicRoute {
             Object.assign(this, augments);
         }
 
-        this.add(children, options.onAdd, options.finalSort ? false : options.sort !== false);
-
-        if (options.finalSort) {
-            this.sortDescendants();
-        }
+        this.add(children, options.onAdd, options.sort ? 1 : 0);
 
         return this;
     }
@@ -134,59 +134,68 @@ export class RouteNode implements BasicRoute {
      * Sort is mandatory
      * @param route
      * @param cb
-     * @param sort
+     * @param {number} sort sorting behaviour:
+     * 0 - do not sort
+     * 1 - sort node and its descendants
+     * 2 - do not sort this node, but sort its descendants (used for delayed sorting arrays of nodes)
      * @returns
      */
-    add(route: BasicRoute | BasicRoute[], cb?: Callback, sort: boolean = true): this {
+    add(route: BasicRouteSignature | BasicRouteSignature[] | this | this[], cb?: Callback, sort: number = 1): this {
         if (route === undefined || route === null) {
             return this;
         }
 
         if (route instanceof Array) {
-            route.forEach((r) => this.add(r, cb, false));
-            if (sort) this.sortChildren();
+            if (route.length === 0) return this;
+            route.forEach((r) => this.add(r, cb, sort === 1 ? 2 : sort));
+            if (sort >= 1) this.sortChildren();
             return this;
         }
 
-        if (!(route instanceof RouteNode) && !(route instanceof Object)) {
-            throw new Error('RouteNode.add() expects routes to be an Object or an instance of RouteNode.');
+        if (!(route instanceof Object)) {
+            throw new Error('RouteNode.add() expects routes to be an Object at least.');
         }
 
+        let node: this;
+        // If route is some object and not instance of RouteNode class, we should build correct instance from it
         if (!(route instanceof RouteNode)) {
             if (!route.name || !route.path) {
                 throw new Error('RouteNode.add() expects routes to have a name and a path defined.');
             }
 
             let { name, path, children, ...extra } = route;
-            route = new this.constructor({
-                name,
-                path,
-                children,
-                options: {
-                    finalSort: false,
-                    onAdd: cb,
-                    sort,
+            node = new this.constructor(
+                {
+                    name,
+                    path,
+                    children,
+                    options: {
+                        onAdd: cb,
+                        sort: sort >= 1 ? true : false,
+                    },
+                    ...extra,
                 },
-                ...extra,
-                __parentNames: this.treeNames,
-            });
+                this.treeNames
+            );
+        } else {
+            node = route;
         }
 
-        // Useless condition, only to please TS
-        if (!(route instanceof this.constructor)) {
-            return this;
+        // Check if instance is corect one, do not allow mixed instance, will be chaotic otherwise
+        if (!(node instanceof this.constructor)) {
+            throw new Error('RouteNode.add() expects routes to be the same instance as the parrent node.');
         }
 
-        this.addRouteNode(route as this, sort);
+        this.addRouteNode(node, sort === 2 ? false : true);
 
-        const fullName = route
-            .getParentNodes([route])
+        const fullName = node
+            .getParentNodes([node])
             .map((_: RouteNode) => _.name)
             .join('.');
 
         if (cb) {
             cb({
-                ...route,
+                ...node,
                 name: fullName,
             });
         }
@@ -402,4 +411,4 @@ export class RouteNode implements BasicRoute {
  * @param init
  * @returns RouteNode
  */
-export const createNode = <Augments>(init?: Partial<BasicRoute> & Augments) => new RouteNode(init) as RouteNode & Augments;
+export const createNode = <Augments>(init: BasicRouteSignature & Augments) => new RouteNode(init) as RouteNode & Augments;

@@ -12,7 +12,7 @@ function withoutMeta(obj: Record<string, any> | null) {
 
 describe('RouteNode', function () {
     it('should instanciate an empty RouteNode if no routes are specified in constructor', function () {
-        const node = new RouteNode();
+        const node = new RouteNode({ children: [] });
 
         expect(node.nameMap.size).toBe(0);
     });
@@ -40,7 +40,7 @@ describe('RouteNode', function () {
         const routeB = { name: 'profile', path: '/profile', extra: 'extra' };
 
         const routes = [routeA, routeB];
-        let node = new RouteNode();
+        let node = new RouteNode({ children: [] });
 
         let i = 0;
         node.add(routes, function (route) {
@@ -100,7 +100,7 @@ describe('RouteNode', function () {
     });
 
     it('should throw an error when trying to add a node which is not an instance of RouteNode or Object', function () {
-        const rootNode = new RouteNode();
+        const rootNode = new RouteNode({ children: [] });
         expect(function () {
             // @ts-ignore
             rootNode.add('users');
@@ -375,7 +375,7 @@ describe('RouteNode', function () {
     });
 
     it('should be able to add deep nodes', function () {
-        const rootNode = new RouteNode()
+        const rootNode = new RouteNode({ children: [] })
             .add({ name: 'users', path: '/users' })
             .add({ name: 'users.view', path: '/view/:id' })
             .add({ name: 'users.list', path: '/list' });
@@ -386,7 +386,7 @@ describe('RouteNode', function () {
     });
 
     it('should sort paths by length', function () {
-        const rootNode = new RouteNode()
+        const rootNode = new RouteNode({ children: [] })
             .add({ name: 'personList', path: '/persons/' })
             .add({ name: 'personDetail', path: '/persons/:personId' })
             .add({ name: 'section', path: '/section/:id?a' })
