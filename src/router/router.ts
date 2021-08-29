@@ -1,7 +1,7 @@
-import type { BasicRoute, RouteNodeState } from 'routeNode';
+import type { BasicRouteSignature, RouteNodeState } from 'routeNode';
 import { RouteNode } from 'routeNode';
 import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params } from 'types/base';
-import { constants, errorCodes } from './constants';
+import { errorCodes, events } from './constants';
 
 export interface NavigationOptions {
     /** replace in browserHistory, nothing else is affected ? */
@@ -29,15 +29,11 @@ export interface State {
 
 export type DefaultDependencies = Record<string, any>;
 
-export type Unsubscribe = () => void;
-export type DoneFn = (err?: any, state?: State) => void;
-export type CancelFn = () => void;
-
-export type RouteDefinition<Dependencies> = BasicRoute & {
+export type RouteSignature<Dependencies> = BasicRouteSignature & {
     asyncRequests?: AsyncFn<Dependencies>;
     onEnter?: EnterFn<Dependencies>;
     forwardTo?: string;
-    children?: Array<RouteDefinition<Dependencies>>;
+    children?: Array<RouteSignature<Dependencies>>;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
@@ -62,7 +58,7 @@ export type EnterFn<Dependencies extends DefaultDependencies = DefaultDependenci
 export interface Options {
     /** route name of 404 page */
     notFoundRouteName?: string;
-    /** route name of default\fallback page, in case of undef route, alternative to 404 */
+    /** route name of default\fallback page, in case of undef route, alternative to 404, if 404 is disabled */
     defaultRouteName?: string;
     autoCleanUp: boolean;
     allowNotFound: boolean;
@@ -79,43 +75,88 @@ export interface Options {
     };
 }
 type Diff<T, From> = T extends From ? never : T;
-type EventNames = typeof constants[keyof typeof constants];
+type DefaultEventNames = typeof events[keyof typeof events];
 type DefaultErrorCodes = typeof errorCodes[keyof typeof errorCodes];
-type ErrorCodes<Errors = DefaultErrorCodes> = Diff<Errors, DefaultErrorCodes> | DefaultErrorCodes;
+type GenErrorCodes<Errors = DefaultErrorCodes> = Diff<Errors, DefaultErrorCodes> | DefaultErrorCodes;
+type GenEventNames<Events = DefaultEventNames> = Diff<Events, DefaultEventNames> | DefaultEventNames;
 
-class Route<Dependencies> extends RouteNode {
+type EventCallback<NodeClass> = (signature: {
+    fromState: State;
+    toState: State;
+    toDeactivate: NodeClass[];
+    toActivate: NodeClass[];
+    options: NavigationOptions;
+    error?: any;
+}) => void;
+
+export class Route<Dependencies> extends RouteNode {
     asyncRequests?: AsyncFn<Dependencies>;
     onEnter?: EnterFn<Dependencies>;
-    forwardTo?: string;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
 
-    // Useless constructor, because everything is optional anyway
-    constructor(init: any) {
-        super(init);
-        if (init.defaultParams) {
-            this.defaultParams = init.defaultParams;
+    constructor(signature: RouteSignature<Dependencies>) {
+        super(signature);
+        if (signature.defaultParams) {
+            this.defaultParams = signature.defaultParams;
+        }
+
+        if (signature.asyncRequests) {
+            this.asyncRequests = signature.asyncRequests;
+        }
+
+        if (signature.onEnter) {
+            this.onEnter = signature.onEnter;
+        }
+
+        if (signature.encodeParams) {
+            this.encodeParams = signature.encodeParams;
+        }
+
+        if (signature.decodeParams) {
+            this.decodeParams = signature.decodeParams;
         }
     }
 }
 
-type NavigationResult<Dependencies, CustomErrorCodes = never> = {
+type NavigationResult<CustomErrorCodes, CustomEventNames, NodeClass> = {
     type: 'error' | 'success';
     payload: {
         fromState?: State | null;
         toState?: State;
-        toDeactivate?: Route<Dependencies>[];
-        toActivate?: Route<Dependencies>[];
-        error?: NavigationError<CustomErrorCodes>;
+        toDeactivate?: NodeClass[];
+        toActivate?: NodeClass[];
+        error?: NavigationError<CustomErrorCodes, CustomEventNames>;
     };
 };
 
-export class NavigationError<CustomErrorCodes = never> extends Error {
-    code: ErrorCodes<CustomErrorCodes>;
-    redirect?: { name: string; params: Params };
+export class RouterError<CustomErrorCodes> extends Error {
+    code: GenErrorCodes<CustomErrorCodes>;
     args?: any[];
-    constructor(code: ErrorCodes<CustomErrorCodes>, message?: string, redirect?: { name: string; params: Params }, ...args: any[]) {
+    constructor(code: GenErrorCodes<CustomErrorCodes>, message?: string, ...args: any[]) {
+        super(message);
+        this.name = 'RouterError';
+        this.code = code;
+
+        if (args) {
+            this.args = args;
+        }
+    }
+}
+
+type NavErrSignature<CustomErrorCodes, CustomEventNames> = {
+    code: GenErrorCodes<CustomErrorCodes>;
+    event?: GenEventNames<CustomEventNames>;
+    message?: string;
+    redirect?: { name: string; params: Params };
+    [key: string]: any;
+};
+export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
+    code: GenErrorCodes<CustomErrorCodes>;
+    redirect?: { name: string; params: Params };
+    args?: { [key: string]: any };
+    constructor({ code, event, message, redirect, ...args }: NavErrSignature<CustomErrorCodes, CustomEventNames>) {
         super(message);
         this.name = 'NavigationError';
         this.code = code;
@@ -129,7 +170,12 @@ export class NavigationError<CustomErrorCodes = never> extends Error {
     }
 }
 
-export class Router42<Dependencies, ErrorCodes = never> {
+export class Router42<
+    Dependencies,
+    ErrorCodes extends string = never,
+    EventNames extends string = never,
+    NodeClass extends Route<Dependencies> = Route<Dependencies>
+> {
     options: Options = {
         autoCleanUp: true,
         allowNotFound: false,
@@ -150,6 +196,12 @@ export class Router42<Dependencies, ErrorCodes = never> {
         },
     };
 
+    hooks: {
+        preNavigate?: (name?: string, params?: Params) => [name: string | undefined, params: Params | undefined];
+    } = {
+        preNavigate: undefined,
+    };
+
     dependencies?: Dependencies;
     callbacks: { [key: string]: Function[] } = {};
 
@@ -157,33 +209,43 @@ export class Router42<Dependencies, ErrorCodes = never> {
     stateId = 0;
     started = false;
 
-    rootNode: Route<Dependencies>;
+    rootNode: NodeClass;
 
     transitionId = -1;
 
-    constructor(routes: RouteDefinition<Dependencies>[], options?: Partial<Options>, dependencies?: Dependencies) {
+    constructor(
+        routes: NodeClass | NodeClass[] | RouteSignature<Dependencies> | RouteSignature<Dependencies>[],
+        options?: Partial<Options>,
+        dependencies?: Dependencies
+    ) {
         this.options = {
             ...this.options,
             ...options,
         };
 
         this.dependencies = dependencies;
-        this.rootNode = routes instanceof Route ? routes : new Route<Dependencies>({ children: routes }); // new RouteNode({ children: routes });
+        if (routes instanceof Route) {
+            this.rootNode = routes;
+        } else if (routes instanceof Array) {
+            this.rootNode = new Route({ children: routes }) as NodeClass;
+        } else {
+            this.rootNode = new Route(routes) as NodeClass;
+        }
     }
 
     //
     // Events
     //
 
-    invokeEventListeners(eventName: EventNames, ...args: any[]) {
-        (this.callbacks[eventName] || []).forEach((cb) => cb(...args));
+    invokeEventListeners(eventName: GenEventNames<EventNames>, ...args: any[]) {
+        (this.callbacks[eventName] || []).forEach((cb: any) => cb(...args));
     }
 
-    removeEventListener(eventName: EventNames, cb: Function) {
-        this.callbacks[eventName] = this.callbacks[eventName].filter((_cb) => _cb !== cb);
+    removeEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass>) {
+        this.callbacks[eventName] = this.callbacks[eventName].filter((_cb: any) => _cb !== cb);
     }
 
-    addEventListener(eventName: EventNames, cb: Function) {
+    addEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass>) {
         this.callbacks[eventName] = (this.callbacks[eventName] || []).concat(cb);
 
         return () => this.removeEventListener(eventName, cb);
@@ -213,10 +275,21 @@ export class Router42<Dependencies, ErrorCodes = never> {
         });
     }
 
-    isActive(name: string, params: Params, ignoreQueryParams = true) {
+    isActive(name: string, params?: Params, exact = false, ignoreQueryParams = true): boolean {
         if (this.state === null) return false;
-        if (this.state.name === name) return this.areStatesEqual(this.makeState(name, params), this.state, ignoreQueryParams);
-        this.areStatesDescendants(this.makeState(name, params), this.state);
+        if (exact) {
+            return this.areStatesEqual(this.makeState(name, params), this.state, ignoreQueryParams);
+        }
+
+        return this.isEqualOrDescendant(this.makeState(name, params), this.state);
+    }
+
+    isEqualOrDescendant(parentState: State, childState: State) {
+        const regex = new RegExp('^' + parentState.name + '($|\\..*$)');
+        if (!regex.test(childState.name)) return false;
+        // If child state name extends parent state name, and all parent state params
+        // are in child state params.
+        return Object.keys(parentState.params).every((p) => parentState.params[p] === childState.params[p]);
     }
 
     //
@@ -253,14 +326,6 @@ export class Router42<Dependencies, ErrorCodes = never> {
         return state1Params.length === state2Params.length && state1Params.every((p) => state1.params[p] === state2.params[p]);
     }
 
-    areStatesDescendants(parentState: State, childState: State) {
-        const regex = new RegExp('^' + parentState.name + '\\.(.*)$');
-        if (!regex.test(childState.name)) return false;
-        // If child state name extends parent state name, and all parent state params
-        // are in child state params.
-        return Object.keys(parentState.params).every((p) => parentState.params[p] === childState.params[p]);
-    }
-
     buildNodeState(routeName: string, routeParams: Params = {}) {
         let params = {
             ...(this.rootNode.getNodeByName(routeName)?.defaultParams || {}),
@@ -273,15 +338,24 @@ export class Router42<Dependencies, ErrorCodes = never> {
     //
     // Lifecycle
     //
-    start(path: string): Promise<NavigationResult<Dependencies, ErrorCodes>> {
+    start(path: string): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
         if (this.started) {
-            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTER_ALREADY_STARTED) } });
+            throw new RouterError<ErrorCodes>(errorCodes.ROUTER_ALREADY_STARTED, 'already started');
         }
 
         this.started = true;
-        this.invokeEventListeners(constants.ROUTER_START);
+        this.invokeEventListeners(events.ROUTER_START);
 
         return this.navigateByPath(path);
+    }
+
+    stop() {
+        if (!this.started) {
+            throw new RouterError<ErrorCodes>(errorCodes.ROUTER_NOT_STARTED, 'not started');
+        }
+
+        this.started = false;
+        this.invokeEventListeners(events.ROUTER_STOP);
     }
 
     //
@@ -305,9 +379,32 @@ export class Router42<Dependencies, ErrorCodes = never> {
         return this.navigate(node?.name || path, { ...(node?.params || {}), params }, options);
     }
 
-    navigate(name?: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<Dependencies, ErrorCodes>> {
+    private inheritNameFragments(basedOn: string | undefined, target: string | undefined): string | undefined {
+        if (!basedOn || !target) return target;
+        if (target.indexOf('*') === -1) return target;
+        let base = basedOn.split('.');
+        let result = target.split('.').reduce<string[]>((result, part, index) => {
+            if (part === '*') {
+                result.push(base[index] || '*');
+            } else {
+                result.push(part);
+            }
+
+            return result;
+        }, []);
+
+        return result.join('.');
+    }
+
+    navigate(name?: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
         if (!this.started) {
-            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTER_NOT_STARTED) } });
+            // throw instead ?
+            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.ROUTER_NOT_STARTED }) } });
+        }
+
+        name = this.inheritNameFragments(this.state?.name, name);
+        if (this.hooks.preNavigate) {
+            [name, params] = this.hooks.preNavigate(name, params);
         }
 
         let nodeState: RouteNodeState | null = null;
@@ -316,18 +413,33 @@ export class Router42<Dependencies, ErrorCodes = never> {
             nodeState = this.buildNodeState(name, params);
         }
 
-        // console.dir(route, { depth: null, breakLength: 140 });
         if (!nodeState) {
-            // navigate to 404
+            // 404 was defined but wasn't found, and this is this.navigate(404) call already
+            if (name === this.options.notFoundRouteName && !nodeState) {
+                throw new NavigationError<ErrorCodes, EventNames>({
+                    code: errorCodes.TRANSITION_CANCELLED,
+                    message: "404 page was set in options, but wasn't defined in routes",
+                });
+            }
+
+            // Navigate to 404, if set
             if (this.options.allowNotFound && this.options.notFoundRouteName) {
                 return this.navigate(this.options.notFoundRouteName, { path: name }, { replace: true, reload: true });
             }
 
+            if (name === this.options.defaultRouteName && !nodeState) {
+                throw new NavigationError<ErrorCodes, EventNames>({
+                    code: errorCodes.TRANSITION_CANCELLED,
+                    message: "defaultPage page was set in options, but wasn't defined in routes",
+                });
+            }
+
+            // Navigate to default route, if set and if 404 is not set or disabled
             if (this.options.defaultRouteName) {
                 return this.navigate(this.options.defaultRouteName, { replace: true, reload: true });
             }
 
-            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.ROUTE_NOT_FOUND) } });
+            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.ROUTE_NOT_FOUND }) } });
         }
 
         const toState = this.makeState(nodeState.name, nodeState.params, {
@@ -336,11 +448,9 @@ export class Router42<Dependencies, ErrorCodes = never> {
             redirected: false,
         });
 
-        // console.dir(toState, { depth: null, breakLength: 140 });
-
         let sameStates = this.state ? this.areStatesEqual(this.state, toState, false) : false;
         if (sameStates && !options.force && !options.reload) {
-            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes>(errorCodes.SAME_STATES) } });
+            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.SAME_STATES }) } });
         }
 
         this.transitionId += 1;
@@ -352,23 +462,24 @@ export class Router42<Dependencies, ErrorCodes = never> {
         toState: State,
         fromState: State | null,
         options: NavigationOptions
-    ): Promise<NavigationResult<Dependencies, ErrorCodes>> {
+    ): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
         let canceled = () => id !== this.transitionId;
         const afterAsync = (result: [{ state?: void | State; passthrough?: any }, any]) => {
             if (canceled()) {
-                throw new NavigationError(errorCodes.TRANSITION_CANCELLED);
+                throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, event: events.TRANSITION_CANCELED });
             }
 
+            // Useless part, state is always present (?)
             if (!result[0].state) {
                 result[0].state = toState;
-                }
+            }
 
             return { state: result[0].state, passthrough: result[0].passthrough, asyncResult: result[1] };
         };
 
         const afterOnEnter = ({ state, passthrough }: { state?: State | undefined; passthrough?: any } | void = {}) => {
             if (canceled()) {
-                throw new NavigationError(errorCodes.TRANSITION_CANCELLED);
+                throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, event: events.TRANSITION_CANCELED });
             }
 
             if (!state) {
@@ -405,23 +516,24 @@ export class Router42<Dependencies, ErrorCodes = never> {
         }
 
         try {
-            let { state, passthrough } = await chain;
+            let { state } = await chain;
             this.state = toState = state;
-            this.invokeEventListeners(constants.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate, options });
+            this.invokeEventListeners(events.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
         } catch (e) {
-            if (e.name === 'NavigationError') {
-                console.debug(`Expected error: ${e.code}`);
-            } else {
-                console.debug('Unknown', e);
+            if (e.name !== 'NavigationError') {
                 e.code = errorCodes.TRANSITION_UNKNOWN_ERROR;
+                e.event = events.TRANSITION_UNKNOWN_ERROR;
             }
 
             if (e.code === errorCodes.TRANSITION_REDIRECTED) {
                 return this.navigate(e.redirect.name, e.redirect.params, { force: true });
             }
 
-            this.invokeEventListeners(e.code, { fromState, toState, toDeactivate, toActivate, options, error: e });
+            if (e.event) {
+                this.invokeEventListeners(e.event, { fromState, toState, toDeactivate, toActivate, options, error: e });
+            }
+
             return { type: 'error', payload: { fromState, toState, toDeactivate, toActivate, error: e } };
         }
     }
@@ -452,9 +564,9 @@ export class Router42<Dependencies, ErrorCodes = never> {
         const toNavigationOpts = toState?.meta?.navigation || {};
         let fromStateIds: string[] = [];
         let toStateIds: string[] = [];
-        let toActivate: Route<Dependencies>[] = [];
-        let toDeactivate: Route<Dependencies>[] = [];
-        let intersection: Route<Dependencies>[] = [];
+        let toActivate: NodeClass[] = [];
+        let toDeactivate: NodeClass[] = [];
+        let intersection: NodeClass[] = [];
 
         if (fromState !== null) {
             fromStateIds = fromState.name.split('.');
@@ -488,9 +600,6 @@ export class Router42<Dependencies, ErrorCodes = never> {
             }
         }
 
-        // console.dir(toDeactivate.map((node) => node.name));
-        // console.dir(toActivate.map((node) => node.name));
-        // console.dir(intersection.map((node) => node.name));
         return {
             toDeactivate,
             toActivate,

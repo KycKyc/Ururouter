@@ -15,15 +15,11 @@
 
 ### To Do (RouteNode)
 
-1. rename: `trailingSlashMode` to `honoreSlash` ?
-2. Better slash detection algorhytm? check `experimental` tests
-3. force slash before every path, remove line 32 in match Children?
-4. Do not let param inhere from parrent to children, why is this even a thing?
-5. Do not let name Nodes without a route and place nameless and routless nodes as childs
-6. accept `BuildOptions` and `MatchOptions` default params on initialization, allow owerride them when calling `buildPath` and `matchPath`
-
-*Complex:*
-do we need nameMap, maybe we can work with only pathName? Will require major rework, probably not worth it
+1. rename: `trailingSlashMode` to `honorSlash` ?
+2. Do not let param inhere from parrent to children, why is this even a thing?
+3. Do not let name Nodes without a route and place nameless and routless nodes as childs
+4. accept `BuildOptions` and `MatchOptions` default params on initialization, allow owerride them when calling `buildPath` and `matchPath` (related to todo#1 from `router`)
+5. check for path duplication, since we removed pathMap, probalby we can check pathMap every time we add a route ? Or just do not give a damn about duplicates.
 
 ## Search params
 
