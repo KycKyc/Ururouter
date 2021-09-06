@@ -1,6 +1,22 @@
-import { createNode, RouteNode } from 'routeNode';
+import { RouteNode } from 'routeNode';
 import { errorCodes, events } from '../constants';
-import { Router42, Options, Route, NavigationError } from '../router';
+import { Router42, Options, Route, NavigationError, RouteSignature, AsyncFn } from '../router';
+
+class BetterRoute<Dependencies> extends Route<Dependencies> {
+    additionalParam: boolean = true;
+
+    // We are going to disable TS and Eslint checks, because in our case we do not do anything inside constructor,
+    // BUT we need to pass correct generic, otherwise type-hint will not work
+    //
+    // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+    constructor(signature: RouteSignature<Dependencies, BetterRoute<Dependencies>>) {
+        super(signature);
+    }
+
+    getName() {
+        return this.name;
+    }
+}
 
 describe('router42', () => {
     it('general, should start', async () => {
@@ -40,6 +56,47 @@ describe('router42', () => {
                 children: [new Route({ name: 'en', path: '/' }), new Route({ name: 'ru', path: '/ru' }), new RouteNode({ name: 'ko', path: '/ko' })],
             });
         }).toThrow('RouteNode.add() expects routes to be the same instance as the parrent node.');
+    });
+
+    it('general, supeset of Route node class are working', async () => {
+        let checkFn = jest.fn();
+        const routes = new BetterRoute({
+            name: '',
+            path: '',
+            children: [
+                new BetterRoute({
+                    name: 'index',
+                    path: '/',
+                    asyncRequests: ({ node }) => {
+                        checkFn(node.getName());
+                    },
+                }),
+                new BetterRoute({
+                    name: 'page',
+                    path: '/page',
+                    asyncRequests: ({ node }) => {
+                        checkFn(node.getName());
+                    },
+                }),
+            ],
+        });
+
+        //
+        // Uncomment if you want to check that node is having correct type
+        //
+        // const routes2 = new BetterRoute({
+        //     name: '',
+        //     path: '',
+        //     asyncRequests: ({ node }) => {},
+        //     children: [{ name: 'index', path: '/', asyncRequests: ({ node }) => {} }],
+        // });
+
+        const router = new Router42(routes);
+        await router.start('/');
+        await router.navigate('page');
+        expect(checkFn.mock.calls.length).toBe(2);
+        expect(checkFn.mock.calls[0][0]).toBe('index');
+        expect(checkFn.mock.calls[1][0]).toBe('page');
     });
 
     it('transition, params are passed to the result', async () => {

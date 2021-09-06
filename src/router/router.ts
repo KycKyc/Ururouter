@@ -29,26 +29,26 @@ export interface State {
 
 export type DefaultDependencies = Record<string, any>;
 
-export type RouteSignature<Dependencies> = BasicRouteSignature & {
-    asyncRequests?: AsyncFn<Dependencies>;
-    onEnter?: EnterFn<Dependencies>;
+export type RouteSignature<Dependencies, NoceClass> = BasicRouteSignature & {
+    asyncRequests?: AsyncFn<Dependencies, NoceClass>;
+    onEnter?: EnterFn<Dependencies, NoceClass>;
     forwardTo?: string;
-    children?: Array<RouteSignature<Dependencies>>;
+    children?: Array<RouteSignature<Dependencies, NoceClass>>;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
     ignoreReloadCall?: boolean;
 };
 
-export type AsyncFn<Dependencies> = (params: {
-    node: Route<Dependencies>;
+export type AsyncFn<Dependencies, NodeClass> = (params: {
+    node: NodeClass;
     toState: State;
     fromState: State | null;
     dependencies?: Dependencies;
 }) => Promise<any> | void;
 
-export type EnterFn<Dependencies> = (params: {
-    node: Route<Dependencies>;
+export type EnterFn<Dependencies, NodeClass> = (params: {
+    node: NodeClass;
     toState: State;
     fromState: State | null;
     dependencies?: Dependencies;
@@ -91,14 +91,14 @@ type EventCallback<NodeClass> = (signature: {
 }) => void;
 
 export class Route<Dependencies> extends RouteNode {
-    asyncRequests?: AsyncFn<Dependencies>;
-    onEnter?: EnterFn<Dependencies>;
+    asyncRequests?: AsyncFn<Dependencies, this>;
+    onEnter?: EnterFn<Dependencies, this>;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
     ignoreReloadCall: boolean = false;
 
-    constructor(signature: RouteSignature<Dependencies>) {
+    constructor(signature: RouteSignature<Dependencies, any>) {
         super(signature);
         if (signature.defaultParams) {
             this.defaultParams = signature.defaultParams;
@@ -176,12 +176,7 @@ export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
     }
 }
 
-export class Router42<
-    Dependencies extends DefaultDependencies,
-    ErrorCodes extends string = never,
-    EventNames extends string = never,
-    NodeClass extends Route<Dependencies> = Route<Dependencies>
-> {
+export class Router42<Dependencies extends DefaultDependencies, ErrorCodes extends string, EventNames extends string, NodeClass extends Route<Dependencies>> {
     options: Options = {
         autoCleanUp: true,
         allowNotFound: false,
@@ -220,10 +215,15 @@ export class Router42<
     transitionId = -1;
 
     // Workaroung for TS bug: https://stackoverflow.com/questions/69019704/generic-that-extends-type-that-require-generic-type-inference-do-not-work/69028892#69028892
-    constructor(routes: RouteSignature<Dependencies> | RouteSignature<Dependencies>[], options?: Partial<Options>, dependencies?: Dependencies);
+    constructor(
+        routes: RouteSignature<Dependencies, Route<Dependencies>> | RouteSignature<Dependencies, Route<Dependencies>>[],
+        options?: Partial<Options>,
+        dependencies?: Dependencies
+    );
+
     constructor(routes: NodeClass | NodeClass[], options?: Partial<Options>, dependencies?: Dependencies);
     constructor(
-        routes: NodeClass | NodeClass[] | RouteSignature<Dependencies> | RouteSignature<Dependencies>[],
+        routes: NodeClass | NodeClass[] | RouteSignature<Dependencies, Route<Dependencies>> | RouteSignature<Dependencies, Route<Dependencies>>[],
         options?: Partial<Options>,
         dependencies?: Dependencies
     ) {
