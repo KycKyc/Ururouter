@@ -37,16 +37,17 @@ export type RouteSignature<Dependencies> = BasicRouteSignature & {
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
+    ignoreReloadCall?: boolean;
 };
 
-export type AsyncFn<Dependencies extends DefaultDependencies = DefaultDependencies> = (params: {
+export type AsyncFn<Dependencies> = (params: {
     node: Route<Dependencies>;
     toState: State;
     fromState: State | null;
     dependencies?: Dependencies;
 }) => Promise<any> | void;
 
-export type EnterFn<Dependencies extends DefaultDependencies = DefaultDependencies> = (params: {
+export type EnterFn<Dependencies> = (params: {
     node: Route<Dependencies>;
     toState: State;
     fromState: State | null;
@@ -95,6 +96,7 @@ export class Route<Dependencies> extends RouteNode {
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
+    ignoreReloadCall: boolean = false;
 
     constructor(signature: RouteSignature<Dependencies>) {
         super(signature);
@@ -116,6 +118,10 @@ export class Route<Dependencies> extends RouteNode {
 
         if (signature.decodeParams) {
             this.decodeParams = signature.decodeParams;
+        }
+
+        if (signature.ignoreReloadCall) {
+            this.ignoreReloadCall = signature.ignoreReloadCall;
         }
     }
 }
@@ -171,7 +177,7 @@ export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
 }
 
 export class Router42<
-    Dependencies,
+    Dependencies extends DefaultDependencies,
     ErrorCodes extends string = never,
     EventNames extends string = never,
     NodeClass extends Route<Dependencies> = Route<Dependencies>
@@ -213,6 +219,9 @@ export class Router42<
 
     transitionId = -1;
 
+    // Workaroung for TS bug: https://stackoverflow.com/questions/69019704/generic-that-extends-type-that-require-generic-type-inference-do-not-work/69028892#69028892
+    constructor(routes: RouteSignature<Dependencies> | RouteSignature<Dependencies>[], options?: Partial<Options>, dependencies?: Dependencies);
+    constructor(routes: NodeClass | NodeClass[], options?: Partial<Options>, dependencies?: Dependencies);
     constructor(
         routes: NodeClass | NodeClass[] | RouteSignature<Dependencies> | RouteSignature<Dependencies>[],
         options?: Partial<Options>,
@@ -222,6 +231,15 @@ export class Router42<
             ...this.options,
             ...options,
         };
+
+        if (!(routes instanceof Array)) {
+            if ((routes.name || '').length > 0 || (routes.path || '').length > 0) {
+                throw new RouterError(
+                    errorCodes.ROUTER_INCORRECT_CONFIGS,
+                    'First node in a tree should have empty name and path, e.g. `new Route({children: [...]})` or `{children: [...]}`'
+                );
+            }
+        }
 
         this.dependencies = dependencies;
         if (routes instanceof Route) {
@@ -275,7 +293,7 @@ export class Router42<
         });
     }
 
-    isActive(name: string, params?: Params, exact = false, ignoreQueryParams = true): boolean {
+    isActive(name: string, params?: Params, exact = true, ignoreQueryParams = true): boolean {
         if (this.state === null) return false;
         if (exact) {
             return this.areStatesEqual(this.makeState(name, params), this.state, ignoreQueryParams);
@@ -322,7 +340,6 @@ export class Router42<
 
         const state1Params = ignoreQueryParams ? getUrlParams(state1.name) : Object.keys(state1.params);
         const state2Params = ignoreQueryParams ? getUrlParams(state2.name) : Object.keys(state2.params);
-
         return state1Params.length === state2Params.length && state1Params.every((p) => state1.params[p] === state2.params[p]);
     }
 
@@ -376,7 +393,7 @@ export class Router42<
      */
     navigateByPath(path: string, params: Params = {}, options: NavigationOptions = {}) {
         let node = this.rootNode.matchPath(path, this.options.pathOptions);
-        return this.navigate(node?.name || path, { ...(node?.params || {}), params }, options);
+        return this.navigate(node?.name || path, { ...(node?.params || {}), ...params }, options);
     }
 
     private inheritNameFragments(basedOn: string | undefined, target: string | undefined): string | undefined {
@@ -434,11 +451,12 @@ export class Router42<
                 });
             }
 
-            // Navigate to default route, if set and if 404 is not set or disabled
+            // Navigate to default route, if set, and if 404 is not set or disabled
             if (this.options.defaultRouteName) {
                 return this.navigate(this.options.defaultRouteName, { replace: true, reload: true });
             }
 
+            // add listner invocation?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.ROUTE_NOT_FOUND }) } });
         }
 
@@ -450,6 +468,7 @@ export class Router42<
 
         let sameStates = this.state ? this.areStatesEqual(this.state, toState, false) : false;
         if (sameStates && !options.force && !options.reload) {
+            // add listner invocation?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.SAME_STATES }) } });
         }
 
@@ -500,7 +519,7 @@ export class Router42<
             if (node.onEnter) {
                 let ent = node.onEnter;
                 chain = Promise.all([chain, asyncFn])
-                    .then(afterAsync) // Check is transition was canceled after async call
+                    .then(afterAsync) // Check is transition was canceled after Async and chain calls, especially matters for the first `chain` which do not have any execution delay
                     .then((result) =>
                         ent({
                             node,
@@ -511,7 +530,7 @@ export class Router42<
                             passthrough: result.passthrough,
                         })
                     )
-                    .then(afterOnEnter); // Check is transition was canceled after onEnter, usefull if onEnter returns Promise. (will take time to execute)
+                    .then(afterOnEnter); // Check is transition was canceled after onEnter, usefull if onEnter returns Promise that will take some time to execute.
             }
         }
 
@@ -520,7 +539,7 @@ export class Router42<
             this.state = toState = state;
             this.invokeEventListeners(events.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
-        } catch (e) {
+        } catch (e: any) {
             if (e.name !== 'NavigationError') {
                 e.code = errorCodes.TRANSITION_UNKNOWN_ERROR;
                 e.event = events.TRANSITION_UNKNOWN_ERROR;
@@ -550,6 +569,8 @@ export class Router42<
                 return params;
             }, {});
 
+            // is this a possible scenario at all?
+            // ToDo: check and remove this block if not
             if (Object.keys(toParams).length !== Object.keys(fromParams).length) {
                 return false;
             }
@@ -576,13 +597,13 @@ export class Router42<
         toStateIds = toState.name.split('.');
         toActivate = this.rootNode.getNodesByName(toState.name) || [];
 
-        if (toNavigationOpts.reload) {
-            return {
-                toDeactivate,
-                toActivate,
-                intersection,
-            };
-        }
+        // if (toNavigationOpts.reload) {
+        //     return {
+        //         toDeactivate,
+        //         toActivate,
+        //         intersection,
+        //     };
+        // }
 
         let [compFrom, compTo] = fromState?.name.length || 0 > toState.name.length ? [toStateIds, fromStateIds] : [fromStateIds, toStateIds];
 
@@ -590,7 +611,7 @@ export class Router42<
         let segmentName: string | null = null;
         for (let value of compFrom) {
             segmentName = segmentName === null ? value : `${segmentName}.${value}`;
-            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName)) {
+            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.reload || toActivate[0].ignoreReloadCall)) {
                 let commonNode = toActivate.splice(0, 1)[0];
                 toDeactivate.splice(0, 1);
                 intersection.push(commonNode);

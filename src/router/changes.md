@@ -10,6 +10,9 @@
 1. adjust priorities(who in controll opf defaults?) and default values of pathOptions ? like put default values into the RouteNode instead of router and matchPath ?
 2. force and reload (NavigationOptions) is more or less the same
 3. Detect duplicate async calls and prevent this, to save possible network request. Deduplicate async calss with the same states.
+4. decode \\ encode params
+5. create `Redirect` error for convinience
+6. Route.defaultParams should be `{}` after class initialization, to aviod unnecessary checks
 
 ## RouteNode
 
