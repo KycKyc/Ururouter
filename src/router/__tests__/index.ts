@@ -1,8 +1,8 @@
 import { RouteNode } from 'routeNode';
 import { errorCodes, events } from '../constants';
-import { Router42, Options, Route, NavigationError, RouteSignature, AsyncFn } from '../router';
+import { Router42, Options, Node, NavigationError, RouteSignature, AsyncFn } from '../router';
 
-class BetterRoute<Dependencies> extends Route<Dependencies> {
+class BetterRoute<Dependencies> extends Node<Dependencies> {
     additionalParam: boolean = true;
 
     // We are going to disable TS and Eslint checks, because in our case we do not do anything inside constructor,
@@ -53,7 +53,7 @@ describe('router42', () => {
     it('general, all nodes should share the same instance', () => {
         expect(() => {
             new Router42({
-                children: [new Route({ name: 'en', path: '/' }), new Route({ name: 'ru', path: '/ru' }), new RouteNode({ name: 'ko', path: '/ko' })],
+                children: [new Node({ name: 'en', path: '/' }), new Node({ name: 'ru', path: '/ru' }), new RouteNode({ name: 'ko', path: '/ko' })],
             });
         }).toThrow('RouteNode.add() expects routes to be the same instance as the parrent node.');
     });
@@ -434,6 +434,22 @@ describe('router42', () => {
         let result = await router.navigate('nowhere');
         expect(result.type).toBe('error');
         expect(result.payload.error?.code).toBe(errorCodes.ROUTE_NOT_FOUND);
+    });
+
+    it('transition, by path rather than name', async () => {
+        const router = createRouter();
+        await router.start('/');
+
+        let result = await router.navigateByPath('/auctions');
+        expect(result.payload.toState?.name).toBe('en.auctions.index');
+
+        result = await router.navigateByPath('/auctions?type=kuva');
+        expect(result.payload.toState?.name).toBe('en.auctions.index');
+        expect(result.payload.toState?.params).toEqual({ type: 'kuva' });
+
+        result = await router.navigateByPath('/profile/KycKyc/reviews/2');
+        expect(result.payload.toState?.name).toBe('en.profile.reviews.page');
+        expect(result.payload.toState?.params).toEqual({ name: 'KycKyc', page: '2' });
     });
 
     it('404, incorrect node name', async () => {

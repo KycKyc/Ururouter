@@ -29,11 +29,13 @@ export interface State {
 
 export type DefaultDependencies = Record<string, any>;
 
-export type RouteSignature<Dependencies, NoceClass> = BasicRouteSignature & {
-    asyncRequests?: AsyncFn<Dependencies, NoceClass>;
-    onEnter?: EnterFn<Dependencies, NoceClass>;
+export type RouteSignature<Dependencies, NodeClass extends Node<Dependencies>> = {
+    name?: string;
+    path?: string;
+    asyncRequests?: AsyncFn<Dependencies, NodeClass>;
+    onEnter?: EnterFn<Dependencies, NodeClass>;
     forwardTo?: string;
-    children?: Array<RouteSignature<Dependencies, NoceClass>>;
+    children?: RouteSignature<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
@@ -81,18 +83,24 @@ type DefaultErrorCodes = typeof errorCodes[keyof typeof errorCodes];
 type GenErrorCodes<Errors = DefaultErrorCodes> = Diff<Errors, DefaultErrorCodes> | DefaultErrorCodes;
 type GenEventNames<Events = DefaultEventNames> = Diff<Events, DefaultEventNames> | DefaultEventNames;
 
-type EventCallback<NodeClass> = (signature: {
-    fromState: State;
+type EventParams<NodeClass> = {
+    fromState: State | null;
     toState: State;
-    toDeactivate: NodeClass[];
-    toActivate: NodeClass[];
+    nodes: {
+        toDeactivate: NodeClass[];
+        toActivate: NodeClass[];
+        intersection: NodeClass[];
+    };
+
     options: NavigationOptions;
     error?: any;
-}) => void;
+    name?: string; // nodeName, decouple it into separate interface
+};
+type EventCallback<NodeClass> = (signature: EventParams<NodeClass>) => void;
 
-export class Route<Dependencies> extends RouteNode {
-    asyncRequests?: AsyncFn<Dependencies, this>;
-    onEnter?: EnterFn<Dependencies, this>;
+export class Node<Dependencies> extends RouteNode {
+    asyncRequests?: AsyncFn<Dependencies, any>;
+    onEnter?: EnterFn<Dependencies, any>;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
@@ -176,7 +184,7 @@ export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
     }
 }
 
-export class Router42<Dependencies extends DefaultDependencies, ErrorCodes extends string, EventNames extends string, NodeClass extends Route<Dependencies>> {
+export class Router42<Dependencies extends DefaultDependencies, ErrorCodes extends string, EventNames extends string, NodeClass extends Node<Dependencies>> {
     options: Options = {
         autoCleanUp: true,
         allowNotFound: false,
@@ -216,14 +224,14 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
 
     // Workaroung for TS bug: https://stackoverflow.com/questions/69019704/generic-that-extends-type-that-require-generic-type-inference-do-not-work/69028892#69028892
     constructor(
-        routes: RouteSignature<Dependencies, Route<Dependencies>> | RouteSignature<Dependencies, Route<Dependencies>>[],
+        routes: RouteSignature<Dependencies, Node<Dependencies>> | RouteSignature<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
         dependencies?: Dependencies
     );
 
     constructor(routes: NodeClass | NodeClass[], options?: Partial<Options>, dependencies?: Dependencies);
     constructor(
-        routes: NodeClass | NodeClass[] | RouteSignature<Dependencies, Route<Dependencies>> | RouteSignature<Dependencies, Route<Dependencies>>[],
+        routes: NodeClass | NodeClass[] | RouteSignature<Dependencies, Node<Dependencies>> | RouteSignature<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
         dependencies?: Dependencies
     ) {
@@ -242,12 +250,12 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         }
 
         this.dependencies = dependencies;
-        if (routes instanceof Route) {
+        if (routes instanceof Node) {
             this.rootNode = routes;
         } else if (routes instanceof Array) {
-            this.rootNode = new Route({ children: routes }) as NodeClass;
+            this.rootNode = new Node({ children: routes }) as NodeClass;
         } else {
-            this.rootNode = new Route(routes) as NodeClass;
+            this.rootNode = new Node(routes) as NodeClass;
         }
     }
 
@@ -255,8 +263,8 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
     // Events
     //
 
-    invokeEventListeners(eventName: GenEventNames<EventNames>, ...args: any[]) {
-        (this.callbacks[eventName] || []).forEach((cb: any) => cb(...args));
+    invokeEventListeners(eventName: GenEventNames<EventNames>, params?: EventParams<NodeClass>) {
+        (this.callbacks[eventName] || []).forEach((cb: any) => cb(params));
     }
 
     removeEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass>) {
@@ -279,6 +287,11 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         return this.rootNode.buildPath(name, { ...defaultParams, ...params }, { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding });
     }
 
+    /**
+     * Do this have any potential use?
+     * @param path
+     * @returns
+     */
     matchPath(path: string) {
         const match = this.rootNode.matchPath(path, this.options.pathOptions);
         if (match == null) {
@@ -508,7 +521,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
             return { state, passthrough };
         };
 
-        let { toDeactivate, toActivate } = this.transitionPath(fromState, toState);
+        let { toDeactivate, toActivate, intersection } = this.transitionPath(fromState, toState);
         let chain: Promise<{ state: State; passthrough: any }> = Promise.resolve({ state: toState, passthrough: undefined });
         for (let node of toActivate) {
             let asyncFn = null;
@@ -537,7 +550,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         try {
             let { state } = await chain;
             this.state = toState = state;
-            this.invokeEventListeners(events.TRANSITION_SUCCESS, { fromState, toState, toDeactivate, toActivate, options });
+            this.invokeEventListeners(events.TRANSITION_SUCCESS, { fromState, toState, nodes: { toDeactivate, toActivate, intersection }, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
         } catch (e: any) {
             if (e.name !== 'NavigationError') {
@@ -550,7 +563,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
             }
 
             if (e.event) {
-                this.invokeEventListeners(e.event, { fromState, toState, toDeactivate, toActivate, options, error: e });
+                this.invokeEventListeners(e.event, { fromState, toState, nodes: { toDeactivate, toActivate, intersection }, options, error: e });
             }
 
             return { type: 'error', payload: { fromState, toState, toDeactivate, toActivate, error: e } };

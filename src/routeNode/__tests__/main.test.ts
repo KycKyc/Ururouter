@@ -35,38 +35,6 @@ describe('RouteNode', function () {
         expect(node.nameMap.size).toBe(2);
     });
 
-    it('should callback for each route', function () {
-        const routeA = { name: 'home', path: '/home', extra: 'extra' };
-        const routeB = { name: 'profile', path: '/profile', extra: 'extra' };
-
-        const routes = [routeA, routeB];
-        let node = new RouteNode({ children: [] });
-
-        let i = 0;
-        node.add(routes, function (route) {
-            i = i + 1;
-            if (i === 1) expect(route).toMatchObject(routeA);
-            if (i === 2) expect(route).toMatchObject(routeB);
-        });
-
-        expect(i).not.toBe(0);
-
-        i = 0;
-
-        node = createNode({
-            children: routes,
-            options: {
-                onAdd: (route) => {
-                    i = i + 1;
-                    if (i === 1) expect(route).toMatchObject(routeA);
-                    if (i === 2) expect(route).toMatchObject(routeB);
-                },
-            },
-        });
-
-        expect(i).not.toBe(0);
-    });
-
     it('should perform a final sort all routes after adding them', () => {
         const routes = [...Array(10)].map((_, index) => ({
             name: `r${index}`,
@@ -845,6 +813,65 @@ describe('RouteNode', function () {
         });
 
         expect(() => node.buildPath('hom')).toThrow();
+    });
+
+    it('should have correct treeNames', () => {
+        const mainNodes = new RouteNode({
+            children: [
+                {
+                    name: 'item',
+                    path: '/item/:item',
+                    children: [
+                        { name: 'index', path: '/' },
+                        { name: 'stats', path: '/statistics' },
+                        { name: 'drop', path: '/drop' },
+                    ],
+                },
+                {
+                    name: 'profile',
+                    path: '/profile/:name',
+                    children: [
+                        { name: 'index', path: '/' },
+                        { name: 'auctions', path: '/auctions' },
+                        { name: 'transactions', path: '/transactions' },
+                        {
+                            name: 'reviews',
+                            path: '/reviews',
+                            children: [
+                                { name: 'index', path: '/' },
+                                { name: 'page', path: '/:page' },
+                            ],
+                        },
+                    ],
+                },
+                { name: 'index', path: '/' },
+                {
+                    name: 'auctions',
+                    path: '/auctions?type',
+                    children: [
+                        { name: 'index', path: '/' },
+                        { name: 'recent', path: '/recent' },
+                        { name: 'search', path: '/search' },
+                    ],
+                },
+                { name: 'notFound', path: '/404' },
+            ],
+        });
+
+        const route = new RouteNode({
+            children: [
+                { name: 'en', path: '/', children: mainNodes },
+                { name: 'ru', path: '/ru', children: mainNodes },
+                { name: 'ko', path: '/ko', children: mainNodes },
+            ],
+        });
+
+        // console.dir(route, { depth: 5 });
+        let enNode = route.getNodeByName('en.profile.index');
+        let koNode = route.getNodeByName('ko.profile.index');
+        // console.debug(enNode);
+        // console.debug(koNode);
+        expect(koNode === enNode).toBeTruthy();
     });
 
     describe('uri encoding', () => {

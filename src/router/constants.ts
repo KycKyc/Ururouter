@@ -16,4 +16,5 @@ export const events = {
     TRANSITION_SUCCESS: '@@event/transition/success',
     TRANSITION_CANCELED: '@@event/transition/canceled',
     TRANSITION_UNKNOWN_ERROR: '@@event/transition/unknown_error',
+    ROUTER_RELOAD_NODE: '@@event/node/reload',
 } as const;
