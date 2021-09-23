@@ -1,6 +1,6 @@
 import { RouteNode } from 'routeNode';
 import { errorCodes, events } from '../constants';
-import { Router42, Options, Node, NavigationError, RouteSignature, AsyncFn } from '../router';
+import { Router42, Options, Node, NavigationError, NodeSignature, AsyncFn } from '../router';
 
 class BetterRoute<Dependencies> extends Node<Dependencies> {
     additionalParam: boolean = true;
@@ -9,7 +9,7 @@ class BetterRoute<Dependencies> extends Node<Dependencies> {
     // BUT we need to pass correct generic, otherwise type-hint will not work
     //
     // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-    constructor(signature: RouteSignature<Dependencies, BetterRoute<Dependencies>>) {
+    constructor(signature: NodeSignature<Dependencies, BetterRoute<Dependencies>>) {
         super(signature);
     }
 
@@ -210,31 +210,35 @@ describe('router42', () => {
     });
 
     it('transition, should cancel right after onEnter func', async () => {
-        const router = new Router42([
-            {
-                name: 'orders',
-                path: '/orders',
-                children: [
-                    {
-                        name: 'index',
-                        path: '/',
-                    },
-                    {
-                        name: 'top',
-                        path: '/top/:id',
-                        onEnter: async () => {
-                            return await new Promise((resolve) => {
-                                setTimeout(() => {
-                                    resolve();
-                                }, 1000);
-                            });
+        const router = new Router42(
+            [
+                {
+                    name: 'orders',
+                    path: '/orders',
+                    children: [
+                        {
+                            name: 'index',
+                            path: '/',
                         },
-                    },
-                    { name: 'statistics', path: '/statistics?type' },
-                    { name: 'drop', path: '/drop' },
-                ],
-            },
-        ]);
+                        {
+                            name: 'top',
+                            path: '/top/:id',
+                            onEnter: async ({}) => {
+                                return await new Promise((resolve) => {
+                                    setTimeout(() => {
+                                        resolve();
+                                    }, 1000);
+                                });
+                            },
+                        },
+                        { name: 'statistics', path: '/statistics?type' },
+                        { name: 'drop', path: '/drop' },
+                    ],
+                },
+            ],
+            {},
+            { lel: '' }
+        );
 
         await router.start('/orders');
         let firstNavigarion = router.navigate('orders.top', { id: 1 });

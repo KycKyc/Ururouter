@@ -21,9 +21,11 @@ const ComponentDependsOnState = () => {
     let r = useRouterState();
     console.debug('render based on State');
     let active = false;
-    for (let node of r.activeNodes) {
-        active = isActive('*.profile', node.treeNames);
-        if (active) break;
+    if (r.state) {
+        for (let node of r.state.activeNodes) {
+            active = isActive('*.profile', node.treeNames);
+            if (active) break;
+        }
     }
 
     let child = useMemo(() => {
@@ -84,23 +86,23 @@ describe('router42 react', () => {
             <RouterProvider router={router}>
                 <Route name={'*.index'}>Index</Route>
                 <Route name={'*.profile.index'}>Profile Index</Route>
-                <Route name={'*.profile.auctions.index'}>Auctions Index</Route>
+                <Route name={'*.profile.auctions'}>Auctions Index</Route>
             </RouterProvider>
         );
 
         render(reactApp);
 
         screen.debug();
-        // await act(async () => {
-        //     await router.navigate('en.profile.index', { name: 'KycKyc' });
-        // });
+        await act(async () => {
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
+        });
 
-        // screen.debug();
-        // await act(async () => {
-        //     await router.navigate('en.profile.auctions.index', { name: 'KycKyc' });
-        // });
+        screen.debug();
+        await act(async () => {
+            await router.navigate('en.profile.auctions', { name: 'KycKyc' });
+        });
 
-        // screen.debug();
+        screen.debug();
     });
 });
 

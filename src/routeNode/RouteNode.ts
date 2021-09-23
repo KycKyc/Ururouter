@@ -146,8 +146,6 @@ export class RouteNode {
                 throw new Error('RouteNode.add() expects routes to have a name and a path, or at least have some children to steal');
             }
 
-            console.debug(`Node:"${this.name}" steals children from another rootNode`);
-
             node.nameMap.forEach((node) => {
                 this.addRouteNode(node);
             });

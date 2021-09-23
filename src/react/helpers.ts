@@ -3,7 +3,6 @@ export const isActive = (name: string, names: string[]): boolean => {
         return names.indexOf(name) !== -1;
     }
 
-    console.debug(name, names);
     let compareTo = name.split('.');
     for (let treeName of names) {
         let compareWith = treeName.split('.');

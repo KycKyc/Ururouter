@@ -20,22 +20,23 @@ export interface StateMeta {
     source?: string;
 }
 
-export interface State {
+export interface State<NodeClass> {
     name: string;
     params: Params;
     meta?: StateMeta;
     path: string;
+    activeNodes: NodeClass[];
 }
 
 export type DefaultDependencies = Record<string, any>;
 
-export type RouteSignature<Dependencies, NodeClass extends Node<Dependencies>> = {
+export type NodeSignature<Dependencies, NodeClass> = {
     name?: string;
     path?: string;
     asyncRequests?: AsyncFn<Dependencies, NodeClass>;
     onEnter?: EnterFn<Dependencies, NodeClass>;
     forwardTo?: string;
-    children?: RouteSignature<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
+    children?: NodeSignature<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
@@ -44,19 +45,19 @@ export type RouteSignature<Dependencies, NodeClass extends Node<Dependencies>> =
 
 export type AsyncFn<Dependencies, NodeClass> = (params: {
     node: NodeClass;
-    toState: State;
-    fromState: State | null;
+    toState: State<NodeClass>;
+    fromState: State<NodeClass> | null;
     dependencies?: Dependencies;
 }) => Promise<any> | void;
 
 export type EnterFn<Dependencies, NodeClass> = (params: {
     node: NodeClass;
-    toState: State;
-    fromState: State | null;
+    toState: State<NodeClass>;
+    fromState: State<NodeClass> | null;
     dependencies?: Dependencies;
     asyncResult?: any;
     passthrough?: any;
-}) => Promise<{ state?: State | undefined; passthrough?: any } | void> | { state?: State | undefined; passthrough?: any } | void;
+}) => Promise<{ state?: State<NodeClass> | undefined; passthrough?: any } | void> | { state?: State<NodeClass> | undefined; passthrough?: any } | void;
 
 export interface Options {
     /** route name of 404 page */
@@ -84,8 +85,8 @@ type GenErrorCodes<Errors = DefaultErrorCodes> = Diff<Errors, DefaultErrorCodes>
 type GenEventNames<Events = DefaultEventNames> = Diff<Events, DefaultEventNames> | DefaultEventNames;
 
 type EventParams<NodeClass> = {
-    fromState: State | null;
-    toState: State;
+    fromState: State<NodeClass> | null;
+    toState: State<NodeClass>;
     nodes: {
         toDeactivate: NodeClass[];
         toActivate: NodeClass[];
@@ -106,7 +107,7 @@ export class Node<Dependencies> extends RouteNode {
     defaultParams?: Params;
     ignoreReloadCall: boolean = false;
 
-    constructor(signature: RouteSignature<Dependencies, any>) {
+    constructor(signature: NodeSignature<Dependencies, any>) {
         super(signature);
         if (signature.defaultParams) {
             this.defaultParams = signature.defaultParams;
@@ -137,8 +138,8 @@ export class Node<Dependencies> extends RouteNode {
 type NavigationResult<CustomErrorCodes, CustomEventNames, NodeClass> = {
     type: 'error' | 'success';
     payload: {
-        fromState?: State | null;
-        toState?: State;
+        fromState?: State<NodeClass> | null;
+        toState?: State<NodeClass>;
         toDeactivate?: NodeClass[];
         toActivate?: NodeClass[];
         error?: NavigationError<CustomErrorCodes, CustomEventNames>;
@@ -214,7 +215,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
     dependencies?: Dependencies;
     callbacks: { [key: string]: Function[] } = {};
 
-    state: State | null = null;
+    state: State<NodeClass> | null = null;
     stateId = 0;
     started = false;
 
@@ -224,14 +225,14 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
 
     // Workaroung for TS bug: https://stackoverflow.com/questions/69019704/generic-that-extends-type-that-require-generic-type-inference-do-not-work/69028892#69028892
     constructor(
-        routes: RouteSignature<Dependencies, Node<Dependencies>> | RouteSignature<Dependencies, Node<Dependencies>>[],
+        routes: NodeSignature<Dependencies, Node<Dependencies>> | NodeSignature<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
         dependencies?: Dependencies
     );
 
     constructor(routes: NodeClass | NodeClass[], options?: Partial<Options>, dependencies?: Dependencies);
     constructor(
-        routes: NodeClass | NodeClass[] | RouteSignature<Dependencies, Node<Dependencies>> | RouteSignature<Dependencies, Node<Dependencies>>[],
+        routes: NodeClass | NodeClass[] | NodeSignature<Dependencies, Node<Dependencies>> | NodeSignature<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
         dependencies?: Dependencies
     ) {
@@ -315,7 +316,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         return this.isEqualOrDescendant(this.makeState(name, params), this.state);
     }
 
-    isEqualOrDescendant(parentState: State, childState: State) {
+    isEqualOrDescendant(parentState: State<NodeClass>, childState: State<NodeClass>) {
         const regex = new RegExp('^' + parentState.name + '($|\\..*$)');
         if (!regex.test(childState.name)) return false;
         // If child state name extends parent state name, and all parent state params
@@ -327,7 +328,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
     // State management
     //
 
-    makeState(name: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>, forceId?: number): State {
+    makeState(name: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>, forceId?: number): State<NodeClass> {
         let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {};
 
         return {
@@ -343,10 +344,11 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
                   }
                 : undefined,
             path: this.buildPath(name, params),
+            activeNodes: [],
         };
     }
 
-    areStatesEqual(state1: State, state2: State, ignoreQueryParams = true) {
+    areStatesEqual(state1: State<NodeClass>, state2: State<NodeClass>, ignoreQueryParams = true) {
         if (state1.name !== state2.name) return false;
 
         const getUrlParams = (name: string) => this.rootNode.getNodeByName(name)?.parser?.['urlParams'] || [];
@@ -491,12 +493,12 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
 
     private async transition(
         id: number,
-        toState: State,
-        fromState: State | null,
+        toState: State<NodeClass>,
+        fromState: State<NodeClass> | null,
         options: NavigationOptions
     ): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
         let canceled = () => id !== this.transitionId;
-        const afterAsync = (result: [{ state?: void | State; passthrough?: any }, any]) => {
+        const afterAsync = (result: [{ state?: void | State<NodeClass>; passthrough?: any }, any]) => {
             if (canceled()) {
                 throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, event: events.TRANSITION_CANCELED });
             }
@@ -509,7 +511,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
             return { state: result[0].state, passthrough: result[0].passthrough, asyncResult: result[1] };
         };
 
-        const afterOnEnter = ({ state, passthrough }: { state?: State | undefined; passthrough?: any } | void = {}) => {
+        const afterOnEnter = ({ state, passthrough }: { state?: State<NodeClass> | undefined; passthrough?: any } | void = {}) => {
             if (canceled()) {
                 throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, event: events.TRANSITION_CANCELED });
             }
@@ -522,7 +524,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         };
 
         let { toDeactivate, toActivate, intersection } = this.transitionPath(fromState, toState);
-        let chain: Promise<{ state: State; passthrough: any }> = Promise.resolve({ state: toState, passthrough: undefined });
+        let chain: Promise<{ state: State<NodeClass>; passthrough: any }> = Promise.resolve({ state: toState, passthrough: undefined });
         for (let node of toActivate) {
             let asyncFn = null;
             if (node.asyncRequests) {
@@ -549,6 +551,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
 
         try {
             let { state } = await chain;
+            state.activeNodes = intersection.concat(toActivate);
             this.state = toState = state;
             this.invokeEventListeners(events.TRANSITION_SUCCESS, { fromState, toState, nodes: { toDeactivate, toActivate, intersection }, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
@@ -570,7 +573,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         }
     }
 
-    transitionPath(fromState: State | null, toState: State) {
+    transitionPath(fromState: State<NodeClass> | null, toState: State<NodeClass>) {
         function paramsAreEqual(name: string) {
             let fromParams = Object.keys(fromState?.meta?.params[name] || {}).reduce<{ [keys: string]: 'string' }>((params, p) => {
                 params[p] = fromState?.params[p];

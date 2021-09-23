@@ -6,10 +6,10 @@ import { RouterStateContext, RouterContext } from './context';
 type Props = { children: ReactNode; router: Router42<any, any, any, any> };
 
 export const RouterProvider = ({ children, router }: Props) => {
-    const [state, setState] = useState<{ state: State | null; activeNodes: any[] }>({ state: router.state, activeNodes: [] });
+    const [state, setState] = useState<{ state: State<any> | null }>({ state: router.state });
     useLayoutEffect(() => {
         const removeListner = router.addEventListener(events.TRANSITION_SUCCESS, ({ toState, nodes }) => {
-            setState({ state: toState, activeNodes: nodes.intersection.concat(nodes.toActivate) });
+            setState({ state: toState });
         });
 
         return removeListner;
@@ -17,7 +17,7 @@ export const RouterProvider = ({ children, router }: Props) => {
 
     return (
         <RouterContext.Provider value={router}>
-            <RouterStateContext.Provider value={{ router: router, state: state.state, activeNodes: state.activeNodes }}>{children}</RouterStateContext.Provider>
+            <RouterStateContext.Provider value={{ router: router, state: state.state }}>{children}</RouterStateContext.Provider>
         </RouterContext.Provider>
     );
 };
