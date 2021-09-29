@@ -18,11 +18,10 @@
 
 ### To Do (RouteNode)
 
-1. rename: `trailingSlashMode` to `honorSlash` ?
-2. Do not let param inhere from parrent to children, why is this even a thing?
-3. Do not let name Nodes without a route and place nameless and routless nodes as childs
-4. accept `BuildOptions` and `MatchOptions` default params on initialization, allow owerride them when calling `buildPath` and `matchPath` (related to todo#1 from `router`)
-5. check for path duplication, since we removed pathMap, probalby we can check pathMap every time we add a route ? Or just do not give a damn about duplicates.
+1. Do not let param inhere from parrent to children, why is this even a thing?
+2. Do not let name Nodes without a route and place nameless and routless nodes as childs
+3. accept `BuildOptions` and `MatchOptions` default params on initialization, allow owerride them when calling `buildPath` and `matchPath` (related to todo#1 from `router`)
+4. check for path duplication, since we removed pathMap, probalby we can check pathMap every time we add a route ? Or just do not give a damn about duplicates.
 
 ## Search params
 

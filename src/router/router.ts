@@ -1,7 +1,9 @@
-import type { BasicRouteSignature, RouteNodeState } from 'routeNode';
+import type { RouteNodeState } from 'routeNode';
 import { RouteNode } from 'routeNode';
 import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params } from 'types/base';
 import { errorCodes, events } from './constants';
+import { Node } from './node';
+import type { EventCallback, EventCallbackNode, EventParamsNavigation } from './types/events';
 
 export interface NavigationOptions {
     /** replace in browserHistory, nothing else is affected ? */
@@ -30,13 +32,23 @@ export interface State<NodeClass> {
 
 export type DefaultDependencies = Record<string, any>;
 
-export type NodeSignature<Dependencies, NodeClass> = {
+type NodeClassSignature<Dependencies> = RouteNode & {
+    ['constructor']: new (params: NodeInitParams<Dependencies, any>) => void;
+    asyncRequests?: AsyncFn<Dependencies, any>;
+    onEnter?: EnterFn<Dependencies, any>;
+    encodeParams?(stateParams: Params): Params;
+    decodeParams?(pathParams: Params): Params;
+    defaultParams?: Params;
+    ignoreReloadCall: boolean;
+};
+
+export type NodeInitParams<Dependencies, NodeClass> = {
     name?: string;
     path?: string;
     asyncRequests?: AsyncFn<Dependencies, NodeClass>;
     onEnter?: EnterFn<Dependencies, NodeClass>;
     forwardTo?: string;
-    children?: NodeSignature<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
+    children?: NodeInitParams<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
@@ -84,57 +96,6 @@ type DefaultErrorCodes = typeof errorCodes[keyof typeof errorCodes];
 type GenErrorCodes<Errors = DefaultErrorCodes> = Diff<Errors, DefaultErrorCodes> | DefaultErrorCodes;
 type GenEventNames<Events = DefaultEventNames> = Diff<Events, DefaultEventNames> | DefaultEventNames;
 
-type EventParams<NodeClass> = {
-    fromState: State<NodeClass> | null;
-    toState: State<NodeClass>;
-    nodes: {
-        toDeactivate: NodeClass[];
-        toActivate: NodeClass[];
-        intersection: NodeClass[];
-    };
-
-    options: NavigationOptions;
-    error?: any;
-    name?: string; // nodeName, decouple it into separate interface
-};
-type EventCallback<NodeClass> = (signature: EventParams<NodeClass>) => void;
-
-export class Node<Dependencies> extends RouteNode {
-    asyncRequests?: AsyncFn<Dependencies, any>;
-    onEnter?: EnterFn<Dependencies, any>;
-    encodeParams?(stateParams: Params): Params;
-    decodeParams?(pathParams: Params): Params;
-    defaultParams?: Params;
-    ignoreReloadCall: boolean = false;
-
-    constructor(signature: NodeSignature<Dependencies, any>) {
-        super(signature);
-        if (signature.defaultParams) {
-            this.defaultParams = signature.defaultParams;
-        }
-
-        if (signature.asyncRequests) {
-            this.asyncRequests = signature.asyncRequests;
-        }
-
-        if (signature.onEnter) {
-            this.onEnter = signature.onEnter;
-        }
-
-        if (signature.encodeParams) {
-            this.encodeParams = signature.encodeParams;
-        }
-
-        if (signature.decodeParams) {
-            this.decodeParams = signature.decodeParams;
-        }
-
-        if (signature.ignoreReloadCall) {
-            this.ignoreReloadCall = signature.ignoreReloadCall;
-        }
-    }
-}
-
 type NavigationResult<CustomErrorCodes, CustomEventNames, NodeClass> = {
     type: 'error' | 'success';
     payload: {
@@ -160,18 +121,19 @@ export class RouterError<CustomErrorCodes> extends Error {
     }
 }
 
-type NavErrSignature<CustomErrorCodes, CustomEventNames> = {
+type NavErrParams<CustomErrorCodes, CustomEventNames> = {
     code: GenErrorCodes<CustomErrorCodes>;
     event?: GenEventNames<CustomEventNames>;
     message?: string;
     redirect?: { name: string; params: Params };
     [key: string]: any;
 };
+
 export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
     code: GenErrorCodes<CustomErrorCodes>;
     redirect?: { name: string; params: Params };
     args?: { [key: string]: any };
-    constructor({ code, event, message, redirect, ...args }: NavErrSignature<CustomErrorCodes, CustomEventNames>) {
+    constructor({ code, event, message, redirect, ...args }: NavErrParams<CustomErrorCodes, CustomEventNames>) {
         super(message);
         this.name = 'NavigationError';
         this.code = code;
@@ -185,7 +147,7 @@ export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
     }
 }
 
-export class Router42<Dependencies extends DefaultDependencies, ErrorCodes extends string, EventNames extends string, NodeClass extends Node<Dependencies>> {
+export class Router42<Dependencies, ErrorCodes extends string, EventNames extends string, NodeClass extends NodeClassSignature<Dependencies>> {
     options: Options = {
         autoCleanUp: true,
         allowNotFound: false,
@@ -207,7 +169,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
     };
 
     hooks: {
-        preNavigate?: (name?: string, params?: Params) => [name: string | undefined, params: Params | undefined];
+        preNavigate?: (name: string, params?: Params) => [name: string, params: Params | undefined];
     } = {
         preNavigate: undefined,
     };
@@ -223,16 +185,18 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
 
     transitionId = -1;
 
+    illegalChars = new RegExp(/[.*+?^${}()|[\]\\]/, 'g');
+
     // Workaroung for TS bug: https://stackoverflow.com/questions/69019704/generic-that-extends-type-that-require-generic-type-inference-do-not-work/69028892#69028892
     constructor(
-        routes: NodeSignature<Dependencies, Node<Dependencies>> | NodeSignature<Dependencies, Node<Dependencies>>[],
+        routes: NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
         dependencies?: Dependencies
     );
 
     constructor(routes: NodeClass | NodeClass[], options?: Partial<Options>, dependencies?: Dependencies);
     constructor(
-        routes: NodeClass | NodeClass[] | NodeSignature<Dependencies, Node<Dependencies>> | NodeSignature<Dependencies, Node<Dependencies>>[],
+        routes: NodeClass | NodeClass[] | NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
         dependencies?: Dependencies
     ) {
@@ -252,7 +216,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
 
         this.dependencies = dependencies;
         if (routes instanceof Node) {
-            this.rootNode = routes;
+            this.rootNode = routes as NodeClass;
         } else if (routes instanceof Array) {
             this.rootNode = new Node({ children: routes }) as NodeClass;
         } else {
@@ -260,19 +224,31 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         }
     }
 
+    // static fromNode<Dependencies>(routes: NodeSignature<Dependencies> | NodeSignature<Dependencies>[], options?: Partial<Options>, dependencies?: Dependencies) {
+    //     return new this(routes);
+    // }
+
+    // static fromSignature<Dependencies>(
+    //     routes: NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
+    //     options?: Partial<Options>,
+    //     dependencies?: Dependencies
+    // ) {
+    //     return new this(routes, options, dependencies);
+    // }
+
     //
     // Events
     //
 
-    invokeEventListeners(eventName: GenEventNames<EventNames>, params?: EventParams<NodeClass>) {
+    invokeEventListeners(eventName: GenEventNames<EventNames>, params?: EventParamsNavigation<NodeClass>) {
         (this.callbacks[eventName] || []).forEach((cb: any) => cb(params));
     }
 
-    removeEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass>) {
+    removeEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass> | EventCallbackNode) {
         this.callbacks[eventName] = this.callbacks[eventName].filter((_cb: any) => _cb !== cb);
     }
 
-    addEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass>) {
+    addEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass> | EventCallbackNode) {
         this.callbacks[eventName] = (this.callbacks[eventName] || []).concat(cb);
 
         return () => this.removeEventListener(eventName, cb);
@@ -282,6 +258,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
     // Routes
     //
     buildPath(name: string, params?: Params) {
+        name = this.inheritNameFragments(this.state?.name, name);
         let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {};
         const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options.pathOptions;
 
@@ -309,6 +286,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
 
     isActive(name: string, params?: Params, exact = true, ignoreQueryParams = true): boolean {
         if (this.state === null) return false;
+        name = this.inheritNameFragments(this.state.name, name);
         if (exact) {
             return this.areStatesEqual(this.makeState(name, params), this.state, ignoreQueryParams);
         }
@@ -358,13 +336,13 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         return state1Params.length === state2Params.length && state1Params.every((p) => state1.params[p] === state2.params[p]);
     }
 
-    buildNodeState(routeName: string, routeParams: Params = {}) {
-        let params = {
-            ...(this.rootNode.getNodeByName(routeName)?.defaultParams || {}),
-            ...routeParams,
+    buildNodeState(name: string, params: Params = {}) {
+        let _params = {
+            ...(this.rootNode.getNodeByName(name)?.defaultParams || {}),
+            ...params,
         };
 
-        return this.rootNode.buildState(routeName, params);
+        return this.rootNode.buildState(name, _params);
     }
 
     //
@@ -411,7 +389,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         return this.navigate(node?.name || path, { ...(node?.params || {}), ...params }, options);
     }
 
-    private inheritNameFragments(basedOn: string | undefined, target: string | undefined): string | undefined {
+    private inheritNameFragments(basedOn: string | undefined, target: string): string {
         if (!basedOn || !target) return target;
         if (target.indexOf('*') === -1) return target;
         let base = basedOn.split('.');
@@ -428,7 +406,7 @@ export class Router42<Dependencies extends DefaultDependencies, ErrorCodes exten
         return result.join('.');
     }
 
-    navigate(name?: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
+    navigate(name: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
         if (!this.started) {
             // throw instead ?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.ROUTER_NOT_STARTED }) } });

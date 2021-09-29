@@ -1,16 +1,67 @@
 import { RouteNode } from 'routeNode';
+import { Params } from 'types/base';
 import { errorCodes, events } from '../constants';
-import { Router42, Options, Node, NavigationError, NodeSignature, AsyncFn } from '../router';
+import { Node } from '../node';
+import { Router42, Options, NavigationError, NodeInitParams, AsyncFn, EnterFn } from '../router';
 
-class BetterRoute<Dependencies> extends Node<Dependencies> {
+class BetterRoute<Dependencies> extends RouteNode {
     additionalParam: boolean = true;
+    asyncRequests?: AsyncFn<Dependencies, BetterRoute<Dependencies>>;
+    onEnter?: EnterFn<Dependencies, BetterRoute<Dependencies>>;
+    encodeParams?(stateParams: Params): Params;
+    decodeParams?(pathParams: Params): Params;
+    defaultParams?: Params;
+    ignoreReloadCall: boolean = false;
 
-    // We are going to disable TS and Eslint checks, because in our case we do not do anything inside constructor,
-    // BUT we need to pass correct generic, otherwise type-hint will not work
-    //
-    // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-    constructor(signature: NodeSignature<Dependencies, BetterRoute<Dependencies>>) {
+    constructor(signature: NodeInitParams<Dependencies, BetterRoute<Dependencies>>) {
         super(signature);
+        if (signature.defaultParams) {
+            this.defaultParams = signature.defaultParams;
+        }
+
+        if (signature.asyncRequests) {
+            this.asyncRequests = signature.asyncRequests;
+        }
+
+        if (signature.onEnter) {
+            this.onEnter = signature.onEnter;
+        }
+
+        if (signature.encodeParams) {
+            this.encodeParams = signature.encodeParams;
+        }
+
+        if (signature.decodeParams) {
+            this.decodeParams = signature.decodeParams;
+        }
+
+        if (signature.ignoreReloadCall) {
+            this.ignoreReloadCall = signature.ignoreReloadCall;
+        }
+    }
+
+    getName() {
+        return this.name;
+    }
+}
+
+type EvenBetterParams<Dependencies, NodeClass> = {
+    something: string;
+    children?: EvenBetterParams<Dependencies, NodeClass>[] | EvenBetter<Dependencies>[] | EvenBetter<Dependencies>;
+    name?: string;
+    path?: string;
+    asyncRequests?: AsyncFn<Dependencies, NodeClass>;
+    onEnter?: EnterFn<Dependencies, NodeClass>;
+    forwardTo?: string;
+    encodeParams?(stateParams: Params): Params;
+    decodeParams?(pathParams: Params): Params;
+    defaultParams?: Params;
+    ignoreReloadCall?: boolean;
+};
+
+class EvenBetter<Dependencies> extends Node<Dependencies> {
+    constructor(signature: EvenBetterParams<Dependencies, EvenBetter<Dependencies>>) {
+        super(signature as any);
     }
 
     getName() {
@@ -60,6 +111,17 @@ describe('router42', () => {
 
     it('general, supeset of Route node class are working', async () => {
         let checkFn = jest.fn();
+        // const r = new EvenBetter({
+        //     name: '',
+        //     something: 'kek',
+        //     children: [
+        //         {
+        //             name: '',
+        //             something: '',
+        //         },
+        //     ],
+        // });
+
         const routes = new BetterRoute({
             name: '',
             path: '',
