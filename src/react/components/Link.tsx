@@ -39,6 +39,8 @@ class Link extends Component<LinkProps> {
             return (name: string, params: any) => {
                 if (name !== _name || _params !== params) {
                     url = this.context.router?.buildPath(name, params);
+                    _name = name;
+                    _params = params;
                 }
 
                 return url;
