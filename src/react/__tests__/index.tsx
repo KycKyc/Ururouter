@@ -4,8 +4,10 @@
 import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
 import React, { useMemo } from 'react';
 import { events } from 'router/constants';
-import { Router42, Options, Node } from 'router/router';
-import { Route } from '../components/Route';
+import { Node } from 'router/node';
+import { Router42, Options } from 'router/router';
+import { Link } from '../components/Link';
+import { Route, RouteState } from '../components/Route';
 import { isActive } from '../helpers';
 import { useRouteNode } from '../hooks/useRouteNode';
 import { useRouterState } from '../hooks/useRouterState';
@@ -29,7 +31,7 @@ const ComponentDependsOnState = () => {
     }
 
     let child = useMemo(() => {
-        return active ? <ChildComponent /> : null;
+        return active ? <PageComponent /> : null;
     }, [active]);
 
     return (
@@ -40,9 +42,19 @@ const ComponentDependsOnState = () => {
     );
 };
 
-const ChildComponent = () => {
-    console.debug('Child render');
-    return <div>i am a child</div>;
+const PageComponent = ({ name = 'whatever' }) => {
+    console.debug('Page component render');
+    return <div>page: {name}</div>;
+};
+
+const Profile = ({ children }: { children: React.ReactNode }) => {
+    console.debug('Profile render');
+    return (
+        <section>
+            <h1>Profile page</h1>
+            <div>{children}</div>
+        </section>
+    );
 };
 
 describe('router42 react', () => {
@@ -84,22 +96,48 @@ describe('router42 react', () => {
         await router.start('/');
         const reactApp = (
             <RouterProvider router={router}>
-                <Route name={'*.index'}>Index</Route>
-                <Route name={'*.profile.index'}>Profile Index</Route>
-                <Route name={'*.profile.auctions'}>Auctions Index</Route>
+                <nav>
+                    <Link name='*.index'>Index</Link>
+                    <Link name='*.profile.index' activeOn='*.profile' params={{ name: 'KycKyc' }}>
+                        Profile
+                    </Link>
+                    <Link name='*.profile.index' params={{ name: 'KycKyc' }}>
+                        Profile Index
+                    </Link>
+                    <Link name='*.profile.auctions' params={{ name: 'KycKyc' }}>
+                        Profile - Auctions
+                    </Link>
+                </nav>
+                <Route name={'*.index'}>
+                    <PageComponent name='index' />
+                </Route>
+                <Route name={'*.profile'}>
+                    <Profile>
+                        <Route name={'*.profile.index'}>
+                            <PageComponent name='Profile index' />
+                        </Route>
+                        <Route name={'*.profile.auctions'}>
+                            <PageComponent name='Auctions index' />
+                        </Route>
+                    </Profile>
+                </Route>
             </RouterProvider>
         );
 
-        render(reactApp);
+        let { getByText } = render(reactApp);
 
         screen.debug();
         await act(async () => {
-            await router.navigate('en.profile.index', { name: 'KycKyc' });
+            // await router.navigate('en.profile.index', { name: 'KycKyc' });
+            let link = getByText('Profile Index');
+            link.click();
         });
 
         screen.debug();
         await act(async () => {
-            await router.navigate('en.profile.auctions', { name: 'KycKyc' });
+            // await router.navigate('en.profile.auctions', { name: 'KycKyc' });
+            let link = getByText('Profile - Auctions');
+            link.click();
         });
 
         screen.debug();
@@ -157,13 +195,11 @@ const createRouter = (options: Partial<Options> = {}) => {
     });
 
     return new Router42(
-        {
-            children: [
-                { name: 'en', path: '/', children: mainNodes },
-                { name: 'ru', path: '/ru', children: mainNodes },
-                { name: 'ko', path: '/ko', children: mainNodes },
-            ],
-        },
+        [
+            { name: 'en', path: '/', children: mainNodes },
+            { name: 'ru', path: '/ru', children: mainNodes },
+            { name: 'ko', path: '/ko', children: mainNodes },
+        ],
         options
     );
 };
