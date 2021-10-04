@@ -16,7 +16,8 @@ import { RouterProvider } from '../provider';
 const ComponentDependsOnNode = () => {
     let profileNode = useRouteNode('en.profile');
     console.debug('render profile node');
-    return <div>{profileNode.component}</div>;
+    //@ts-ignore
+    return <div>{profileNode?.component}</div>;
 };
 
 const ComponentDependsOnState = () => {
@@ -84,7 +85,6 @@ describe('router42 react', () => {
         await act(async () => {
             //@ts-ignore
             router.rootNode.getNodeByName('en.profile').component = <div>kekw</div>;
-            //@ts-ignore
             router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: 'en.profile' });
         });
 

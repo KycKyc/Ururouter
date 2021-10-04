@@ -1,9 +1,10 @@
 import type { RouteNodeState } from 'routeNode';
-import { RouteNode } from 'routeNode';
 import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params } from 'types/base';
 import { errorCodes, events } from './constants';
-import { Node } from './node';
-import type { EventCallback, EventCallbackNode, EventParamsNavigation } from './types/events';
+import { NavigationError, RouterError } from './errors';
+import { Node, NodeInitParams, NodeClassSignature } from './node';
+import { DefaultEventNames } from './types';
+import type { EventCallback, EventCallbackNode, EventParamsNavigation, EventParamsNode } from './types/events';
 
 export interface NavigationOptions {
     /** replace in browserHistory, nothing else is affected ? */
@@ -30,47 +31,6 @@ export interface State<NodeClass> {
     activeNodes: NodeClass[];
 }
 
-export type DefaultDependencies = Record<string, any>;
-
-type NodeClassSignature<Dependencies> = RouteNode & {
-    ['constructor']: new (params: NodeInitParams<Dependencies, any>) => void;
-    asyncRequests?: AsyncFn<Dependencies, any>;
-    onEnter?: EnterFn<Dependencies, any>;
-    encodeParams?(stateParams: Params): Params;
-    decodeParams?(pathParams: Params): Params;
-    defaultParams?: Params;
-    ignoreReloadCall: boolean;
-};
-
-export type NodeInitParams<Dependencies, NodeClass> = {
-    name?: string;
-    path?: string;
-    asyncRequests?: AsyncFn<Dependencies, NodeClass>;
-    onEnter?: EnterFn<Dependencies, NodeClass>;
-    forwardTo?: string;
-    children?: NodeInitParams<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
-    encodeParams?(stateParams: Params): Params;
-    decodeParams?(pathParams: Params): Params;
-    defaultParams?: Params;
-    ignoreReloadCall?: boolean;
-};
-
-export type AsyncFn<Dependencies, NodeClass> = (params: {
-    node: NodeClass;
-    toState: State<NodeClass>;
-    fromState: State<NodeClass> | null;
-    dependencies?: Dependencies;
-}) => Promise<any> | void;
-
-export type EnterFn<Dependencies, NodeClass> = (params: {
-    node: NodeClass;
-    toState: State<NodeClass>;
-    fromState: State<NodeClass> | null;
-    dependencies?: Dependencies;
-    asyncResult?: any;
-    passthrough?: any;
-}) => Promise<{ state?: State<NodeClass> | undefined; passthrough?: any } | void> | { state?: State<NodeClass> | undefined; passthrough?: any } | void;
-
 export interface Options {
     /** route name of 404 page */
     notFoundRouteName?: string;
@@ -90,64 +50,19 @@ export interface Options {
         strictTrailingSlash: boolean;
     };
 }
-type Diff<T, From> = T extends From ? never : T;
-type DefaultEventNames = typeof events[keyof typeof events];
-type DefaultErrorCodes = typeof errorCodes[keyof typeof errorCodes];
-type GenErrorCodes<Errors = DefaultErrorCodes> = Diff<Errors, DefaultErrorCodes> | DefaultErrorCodes;
-type GenEventNames<Events = DefaultEventNames> = Diff<Events, DefaultEventNames> | DefaultEventNames;
 
-type NavigationResult<CustomErrorCodes, CustomEventNames, NodeClass> = {
+type NavigationResult<NodeClass> = {
     type: 'error' | 'success';
     payload: {
         fromState?: State<NodeClass> | null;
         toState?: State<NodeClass>;
         toDeactivate?: NodeClass[];
         toActivate?: NodeClass[];
-        error?: NavigationError<CustomErrorCodes, CustomEventNames>;
+        error?: NavigationError<string, string>;
     };
 };
 
-export class RouterError<CustomErrorCodes> extends Error {
-    code: GenErrorCodes<CustomErrorCodes>;
-    args?: any[];
-    constructor(code: GenErrorCodes<CustomErrorCodes>, message?: string, ...args: any[]) {
-        super(message);
-        this.name = 'RouterError';
-        this.code = code;
-
-        if (args) {
-            this.args = args;
-        }
-    }
-}
-
-type NavErrParams<CustomErrorCodes, CustomEventNames> = {
-    code: GenErrorCodes<CustomErrorCodes>;
-    event?: GenEventNames<CustomEventNames>;
-    message?: string;
-    redirect?: { name: string; params: Params };
-    [key: string]: any;
-};
-
-export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
-    code: GenErrorCodes<CustomErrorCodes>;
-    redirect?: { name: string; params: Params };
-    args?: { [key: string]: any };
-    constructor({ code, event, message, redirect, ...args }: NavErrParams<CustomErrorCodes, CustomEventNames>) {
-        super(message);
-        this.name = 'NavigationError';
-        this.code = code;
-        if (redirect) {
-            this.redirect = redirect;
-        }
-
-        if (args) {
-            this.args = args;
-        }
-    }
-}
-
-export class Router42<Dependencies, ErrorCodes extends string, EventNames extends string, NodeClass extends NodeClassSignature<Dependencies>> {
+export class Router42<Dependencies, NodeClass extends NodeClassSignature<Dependencies> = Node<Dependencies>> {
     options: Options = {
         autoCleanUp: true,
         allowNotFound: false,
@@ -240,15 +155,15 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
     // Events
     //
 
-    invokeEventListeners(eventName: GenEventNames<EventNames>, params?: EventParamsNavigation<NodeClass>) {
+    invokeEventListeners(eventName: DefaultEventNames | string, params?: EventParamsNavigation<NodeClass> | EventParamsNode) {
         (this.callbacks[eventName] || []).forEach((cb: any) => cb(params));
     }
 
-    removeEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass> | EventCallbackNode) {
+    removeEventListener(eventName: DefaultEventNames | string, cb: EventCallback<NodeClass> | EventCallbackNode) {
         this.callbacks[eventName] = this.callbacks[eventName].filter((_cb: any) => _cb !== cb);
     }
 
-    addEventListener(eventName: GenEventNames<EventNames>, cb: EventCallback<NodeClass> | EventCallbackNode) {
+    addEventListener(eventName: DefaultEventNames | string, cb: EventCallback<NodeClass> | EventCallbackNode) {
         this.callbacks[eventName] = (this.callbacks[eventName] || []).concat(cb);
 
         return () => this.removeEventListener(eventName, cb);
@@ -348,9 +263,9 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
     //
     // Lifecycle
     //
-    start(path: string): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
+    start(path: string): Promise<NavigationResult<NodeClass>> {
         if (this.started) {
-            throw new RouterError<ErrorCodes>(errorCodes.ROUTER_ALREADY_STARTED, 'already started');
+            throw new RouterError(errorCodes.ROUTER_ALREADY_STARTED, 'already started');
         }
 
         this.started = true;
@@ -361,7 +276,7 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
 
     stop() {
         if (!this.started) {
-            throw new RouterError<ErrorCodes>(errorCodes.ROUTER_NOT_STARTED, 'not started');
+            throw new RouterError(errorCodes.ROUTER_NOT_STARTED, 'not started');
         }
 
         this.started = false;
@@ -406,10 +321,10 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
         return result.join('.');
     }
 
-    navigate(name: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
+    navigate(name: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<NodeClass>> {
         if (!this.started) {
             // throw instead ?
-            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.ROUTER_NOT_STARTED }) } });
+            return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.ROUTER_NOT_STARTED }) } });
         }
 
         name = this.inheritNameFragments(this.state?.name, name);
@@ -426,7 +341,7 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
         if (!nodeState) {
             // 404 was defined but wasn't found, and this is this.navigate(404) call already
             if (name === this.options.notFoundRouteName && !nodeState) {
-                throw new NavigationError<ErrorCodes, EventNames>({
+                throw new NavigationError({
                     code: errorCodes.TRANSITION_CANCELLED,
                     message: "404 page was set in options, but wasn't defined in routes",
                 });
@@ -438,7 +353,7 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
             }
 
             if (name === this.options.defaultRouteName && !nodeState) {
-                throw new NavigationError<ErrorCodes, EventNames>({
+                throw new NavigationError({
                     code: errorCodes.TRANSITION_CANCELLED,
                     message: "defaultPage page was set in options, but wasn't defined in routes",
                 });
@@ -450,7 +365,7 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
             }
 
             // add listner invocation?
-            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.ROUTE_NOT_FOUND }) } });
+            return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.ROUTE_NOT_FOUND }) } });
         }
 
         const toState = this.makeState(nodeState.name, nodeState.params, {
@@ -462,7 +377,7 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
         let sameStates = this.state ? this.areStatesEqual(this.state, toState, false) : false;
         if (sameStates && !options.force && !options.reload) {
             // add listner invocation?
-            return Promise.resolve({ type: 'error', payload: { error: new NavigationError<ErrorCodes, EventNames>({ code: errorCodes.SAME_STATES }) } });
+            return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.SAME_STATES }) } });
         }
 
         this.transitionId += 1;
@@ -474,11 +389,11 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
         toState: State<NodeClass>,
         fromState: State<NodeClass> | null,
         options: NavigationOptions
-    ): Promise<NavigationResult<ErrorCodes, EventNames, NodeClass>> {
+    ): Promise<NavigationResult<NodeClass>> {
         let canceled = () => id !== this.transitionId;
         const afterAsync = (result: [{ state?: void | State<NodeClass>; passthrough?: any }, any]) => {
             if (canceled()) {
-                throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, event: events.TRANSITION_CANCELED });
+                throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, triggerEvent: events.TRANSITION_CANCELED });
             }
 
             // Useless part, state is always present (?)
@@ -491,7 +406,7 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
 
         const afterOnEnter = ({ state, passthrough }: { state?: State<NodeClass> | undefined; passthrough?: any } | void = {}) => {
             if (canceled()) {
-                throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, event: events.TRANSITION_CANCELED });
+                throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, triggerEvent: events.TRANSITION_CANCELED });
             }
 
             if (!state) {
@@ -536,15 +451,15 @@ export class Router42<Dependencies, ErrorCodes extends string, EventNames extend
         } catch (e: any) {
             if (e.name !== 'NavigationError') {
                 e.code = errorCodes.TRANSITION_UNKNOWN_ERROR;
-                e.event = events.TRANSITION_UNKNOWN_ERROR;
+                e.triggerEvent = events.TRANSITION_UNKNOWN_ERROR;
             }
 
             if (e.code === errorCodes.TRANSITION_REDIRECTED) {
-                return this.navigate(e.redirect.name, e.redirect.params, { force: true });
+                return this.navigate(e.redirect.to, e.redirect.params, { force: true });
             }
 
-            if (e.event) {
-                this.invokeEventListeners(e.event, { fromState, toState, nodes: { toDeactivate, toActivate, intersection }, options, error: e });
+            if (e.triggerEvent) {
+                this.invokeEventListeners(e.triggerEvent, { fromState, toState, nodes: { toDeactivate, toActivate, intersection }, options, error: e });
             }
 
             return { type: 'error', payload: { fromState, toState, toDeactivate, toActivate, error: e } };

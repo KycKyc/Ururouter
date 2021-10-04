@@ -1,8 +1,9 @@
 import { RouteNode } from 'routeNode';
 import { Params } from 'types/base';
 import { errorCodes, events } from '../constants';
-import { Node } from '../node';
-import { Router42, Options, NavigationError, NodeInitParams, AsyncFn, EnterFn } from '../router';
+import { Redirect } from '../errors';
+import { Node, NodeInitParams, AsyncFn, EnterFn } from '../node';
+import { Router42, Options } from '../router';
 
 class BetterRoute<Dependencies> extends RouteNode {
     additionalParam: boolean = true;
@@ -337,10 +338,7 @@ describe('router42', () => {
                     path: '/protected',
                     onEnter: ({ dependencies }) => {
                         if (!dependencies!.authorized) {
-                            throw new NavigationError({
-                                code: errorCodes.TRANSITION_REDIRECTED,
-                                redirect: { name: 'auth', params: { return_to: 'protected' } },
-                            });
+                            throw new Redirect({ to: 'auth', params: { return_to: 'protected' } });
                         }
                     },
                 },
