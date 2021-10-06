@@ -1,3 +1,4 @@
+import React from 'react';
 import { RouteNode } from 'routeNode';
 import { Params } from 'types/base';
 import { State } from './router';
@@ -27,6 +28,8 @@ export type NodeClassSignature<Dependencies> = RouteNode & {
     defaultParams?: Params;
     /** Suppress asyncRequests and on onEnter functions, even if navigationOptions.reload is true */
     ignoreReloadCall: boolean;
+    /** React components */
+    components?: { [key: string]: React.ReactNode };
 };
 
 export type NodeInitParams<Dependencies, NodeClass> = {
@@ -41,6 +44,8 @@ export type NodeInitParams<Dependencies, NodeClass> = {
     defaultParams?: Params;
     /** Suppress asyncRequests and on onEnter functions, even if navigation options.reload === true */
     ignoreReloadCall?: boolean;
+    /** React components */
+    components?: { [key: string]: React.ReactNode };
 };
 
 export class Node<Dependencies> extends RouteNode {
@@ -50,6 +55,7 @@ export class Node<Dependencies> extends RouteNode {
     decodeParams?(pathParams: Params): Params;
     defaultParams: Params = {};
     ignoreReloadCall: boolean = false;
+    components: { [key: string]: React.ReactNode } = {};
 
     constructor(signature: NodeInitParams<Dependencies, Node<Dependencies>>) {
         super(signature);

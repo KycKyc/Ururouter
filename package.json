@@ -1,6 +1,6 @@
 {
   "name": "router42",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Route management pkg",
   "main": "dist/index.js",
   "module": "dist/index.es.js",
@@ -47,7 +47,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "path-parser": "^6.1.0",
     "search-params": "^4.0.1"
   },
   "peerDependencies": {}

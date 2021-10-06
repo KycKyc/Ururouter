@@ -1,0 +1,19 @@
+async : ({node, router, reloadNode, toActivate, toDeactivate}) => {
+    let promise = import('...')
+    return {promise}
+}
+onEnter: ({node, router, reloadNode, asyncResult, dependencies, passthrough}) => {
+    let passthrough = Promise.all([passthrough, asyncResult.promise]).then((prevEnter, asyncResult) => {
+        let {apiResponse, component, action, reducer} = asyncResult
+        node.component = component
+        dependencies.store.inject(reducer))
+        action(apiResponse)
+        reloadNode('nodeName')
+        return true
+    }).catch((error)=>{
+        node.component = <FallbackComponent reloadButton={true}/>
+        reloadNode('nodeName')
+        return false
+    })
+    retun {passthrough}
+}

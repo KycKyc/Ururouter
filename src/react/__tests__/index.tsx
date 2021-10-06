@@ -5,10 +5,12 @@ import { cleanup, fireEvent, render, screen, act } from '@testing-library/react'
 import React, { useMemo } from 'react';
 import { events } from 'router/constants';
 import { Node } from 'router/node';
-import { Router42, Options } from 'router/router';
+import { Router42, Options, State } from 'router/router';
 import { Link } from '../components/Link';
 import { Route, RouteState } from '../components/Route';
 import { isActive } from '../helpers';
+import { withRouter } from '../hocs/withRouter';
+import { withRouterState } from '../hocs/withRouterState';
 import { useRouteNode } from '../hooks/useRouteNode';
 import { useRouterState } from '../hooks/useRouterState';
 import { RouterProvider } from '../provider';
@@ -141,6 +143,83 @@ describe('router42 react', () => {
         });
 
         screen.debug();
+    });
+
+    it('hocs, withRouter', async () => {
+        const renderCounter = jest.fn();
+        const router = createRouter();
+        await router.start('/');
+
+        type WithRouterProps = {
+            router: Router42<any, Node<any>> | null;
+        };
+        class ComponentRouter extends React.Component<WithRouterProps> {
+            render() {
+                let { router } = this.props;
+                renderCounter(router);
+                return <div></div>;
+            }
+        }
+        const Wrapped = withRouter(ComponentRouter);
+
+        const reactApp = (
+            <RouterProvider router={router}>
+                <Wrapped />
+            </RouterProvider>
+        );
+
+        render(reactApp);
+
+        await act(async () => {
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
+        });
+
+        await act(async () => {
+            await router.navigate('en.profile.auctions', { name: 'KycKyc' });
+        });
+
+        expect(renderCounter.mock.calls.length).toBe(1);
+        expect(renderCounter.mock.calls[0][0]).toBeDefined();
+    });
+
+    it('hocs, withRouterState', async () => {
+        const renderCounter = jest.fn();
+        const router = createRouter();
+        await router.start('/');
+
+        type WithRouterProps = {
+            router: Router42<any, Node<any>> | null;
+            state: State<Node<any>> | null;
+        };
+        class ComponentRouter extends React.Component<WithRouterProps> {
+            render() {
+                let { router, state } = this.props;
+                renderCounter(state?.name);
+                return <div></div>;
+            }
+        }
+        const Wrapped = withRouterState(ComponentRouter);
+
+        const reactApp = (
+            <RouterProvider router={router}>
+                <Wrapped />
+            </RouterProvider>
+        );
+
+        render(reactApp);
+
+        await act(async () => {
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
+        });
+
+        await act(async () => {
+            await router.navigate('en.profile.auctions', { name: 'KycKyc' });
+        });
+
+        expect(renderCounter.mock.calls.length).toBe(3);
+        expect(renderCounter.mock.calls[0][0]).toBe('en.index');
+        expect(renderCounter.mock.calls[1][0]).toBe('en.profile.index');
+        expect(renderCounter.mock.calls[2][0]).toBe('en.profile.auctions');
     });
 });
 

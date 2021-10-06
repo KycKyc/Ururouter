@@ -2,7 +2,7 @@ import React, { Component, HTMLAttributes, MouseEventHandler } from 'react';
 import { NavigationOptions } from 'router/router';
 import { RouterStateContext } from '../context';
 
-export interface LinkProps extends HTMLAttributes<HTMLAnchorElement> {
+interface LinkProps extends HTMLAttributes<HTMLAnchorElement> {
     name: string;
     params?: { [key: string]: any };
     options?: NavigationOptions;
