@@ -23,5 +23,12 @@ export const withNode =
         };
 
         ComponentWithNode.displayName = `withNode(${displayName})`;
-        return forwardRef<ComponentInstance, PureProps>((props, ref) => <ComponentWithNode forwardedRef={ref} {...props} />);
+
+        function forwardFunction(props: React.PropsWithChildren<PureProps>, ref: React.ForwardedRef<ComponentInstance>) {
+            return <ComponentWithNode forwardedRef={ref} {...props} />;
+        }
+
+        forwardFunction.displayName = `forwardRef(withNode(${displayName}))`;
+
+        return forwardRef(forwardFunction);
     };

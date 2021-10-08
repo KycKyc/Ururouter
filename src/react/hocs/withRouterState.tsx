@@ -23,5 +23,12 @@ export const withRouterState = <Props extends InjectedProps>(Component: React.Co
     };
 
     ComponentWithNode.displayName = `withRouterState(${displayName})`;
-    return forwardRef<ComponentInstance, PureProps>((props, ref) => <ComponentWithNode forwardedRef={ref} {...props} />);
+
+    function forwardFunction(props: React.PropsWithChildren<PureProps>, ref: React.ForwardedRef<ComponentInstance>) {
+        return <ComponentWithNode forwardedRef={ref} {...props} />;
+    }
+
+    forwardFunction.displayName = `forwardRef(withRouterState(${displayName}))`;
+
+    return forwardRef(forwardFunction);
 };

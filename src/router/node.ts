@@ -29,7 +29,7 @@ export type NodeClassSignature<Dependencies> = RouteNode & {
     /** Suppress asyncRequests and on onEnter functions, even if navigationOptions.reload is true */
     ignoreReloadCall: boolean;
     /** React components */
-    components?: { [key: string]: React.ReactNode };
+    components?: { [key: string]: React.ComponentType<any> };
 };
 
 export type NodeInitParams<Dependencies, NodeClass> = {
@@ -45,7 +45,7 @@ export type NodeInitParams<Dependencies, NodeClass> = {
     /** Suppress asyncRequests and on onEnter functions, even if navigation options.reload === true */
     ignoreReloadCall?: boolean;
     /** React components */
-    components?: { [key: string]: React.ReactNode };
+    components?: { [key: string]: React.ComponentType<any> };
 };
 
 export class Node<Dependencies> extends RouteNode {
@@ -55,7 +55,7 @@ export class Node<Dependencies> extends RouteNode {
     decodeParams?(pathParams: Params): Params;
     defaultParams: Params = {};
     ignoreReloadCall: boolean = false;
-    components: { [key: string]: React.ReactNode } = {};
+    components: { [key: string]: React.ComponentType<any> } = {};
 
     constructor(signature: NodeInitParams<Dependencies, Node<Dependencies>>) {
         super(signature);
@@ -81,6 +81,10 @@ export class Node<Dependencies> extends RouteNode {
 
         if (signature.ignoreReloadCall) {
             this.ignoreReloadCall = signature.ignoreReloadCall;
+        }
+
+        if (signature.components) {
+            this.components = signature.components;
         }
     }
 }
