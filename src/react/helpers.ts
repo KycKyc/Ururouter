@@ -1,4 +1,10 @@
-export const isActive = (name: string, names: string[]): boolean => {
+/**
+ * is node with given name active?
+ * @param name - looking for this name
+ * @param names - list of known node names
+ * @returns
+ */
+export const isNodeActive = (name: string, names: string[]): boolean => {
     if (name.indexOf('*') === -1) {
         return names.indexOf(name) !== -1;
     }

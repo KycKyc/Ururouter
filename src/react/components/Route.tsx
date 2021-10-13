@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { State } from '../../router/router';
-import { isActive } from '../helpers';
+import { isNodeActive } from '../helpers';
 import { useRouterState } from '../hooks/useRouterState';
 
 interface RouteParams {
@@ -19,7 +19,7 @@ export const Route = ({ children, name }: RouteParams) => {
     let active = false;
     if (r.state) {
         for (let node of r.state.activeNodes) {
-            active = isActive(name, node.treeNames);
+            active = isNodeActive(name, node.treeNames);
             if (active) break;
         }
     }
@@ -44,7 +44,7 @@ export const RouteState = ({ children, name }: RouteStateParams) => {
     let active = false;
     if (r.state) {
         for (let node of r.state.activeNodes) {
-            active = isActive(name, node.treeNames);
+            active = isNodeActive(name, node.treeNames);
             if (active) break;
         }
     }

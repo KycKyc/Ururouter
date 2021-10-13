@@ -1,6 +1,7 @@
 /**
  * @jest-environment jsdom
  */
+import { react } from '@babel/types';
 import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
 import React, { useMemo } from 'react';
 import { events } from 'router/constants';
@@ -8,7 +9,7 @@ import { Node } from 'router/node';
 import { Router42, Options, State } from 'router/router';
 import { Link } from '../components/Link';
 import { Route, RouteState } from '../components/Route';
-import { isActive } from '../helpers';
+import { isNodeActive } from '../helpers';
 import { withNode } from '../hocs/withNode';
 import { withRouter } from '../hocs/withRouter';
 import { withRouterState } from '../hocs/withRouterState';
@@ -17,119 +18,66 @@ import { useRouter } from '../hooks/useRouter';
 import { useRouterState } from '../hooks/useRouterState';
 import { RouterProvider } from '../provider';
 
-const ComponentDependsOnNode = () => {
-    let profileNode = useRouteNode('en.profile');
-    console.debug('render profile node');
-    //@ts-ignore
-    return <div>{profileNode?.component}</div>;
-};
-
-const ComponentDependsOnState = () => {
-    let r = useRouterState();
-    console.debug('render based on State');
-    let active = false;
-    if (r.state) {
-        for (let node of r.state.activeNodes) {
-            active = isActive('*.profile', node.treeNames);
-            if (active) break;
-        }
-    }
-
-    let child = useMemo(() => {
-        return active ? <div /> : null;
-    }, [active]);
-
-    return (
-        <div>
-            <span>{r.state?.name}</span>
-            {child}
-        </div>
-    );
-};
-
-describe('router42 react', () => {
-    it('experiments', async () => {
-        const router = createRouter();
-        await router.start('/');
-        const reactApp = (
-            <RouterProvider router={router}>
-                <ComponentDependsOnNode />
-                <ComponentDependsOnState />
-            </RouterProvider>
-        );
-
-        render(reactApp);
-        screen.debug();
-        await act(async () => {
-            await router.navigate('en.profile.index', { name: 'KycKyc' });
-        });
-
-        screen.debug();
-        await act(async () => {
-            await router.navigate('en.profile.auctions', { name: 'KycKyc' });
-        });
-
-        screen.debug();
-
-        await act(async () => {
-            //@ts-ignore
-            router.rootNode.getNodeByName('en.profile').component = <div>kekw</div>;
-            router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: 'en.profile' });
-        });
-
-        screen.debug();
+describe('React', () => {
+    it('isNodeActive func working properly', async () => {
+        expect(isNodeActive('*.index', ['en.inex', 'ko.index'])).toBeTruthy();
+        expect(isNodeActive('en.index', ['en.index', 'ko.index'])).toBeTruthy();
+        expect(isNodeActive('index', ['en.inex', 'ko.index'])).toBeFalsy();
+        expect(isNodeActive('ru.index', ['en.inex', 'ko.index'])).toBeFalsy();
     });
 
-    it('route component', async () => {
+    it('RouteState is working', async () => {
         const router = createRouter();
         await router.start('/');
         const reactApp = (
             <RouterProvider router={router}>
-                <nav>
-                    <Link name='*.index'>Index</Link>
-                    <Link name='*.profile.index' activeOn='*.profile' params={{ name: 'KycKyc' }}>
-                        Profile
-                    </Link>
-                    <Link name='*.profile.index' params={{ name: 'KycKyc' }}>
-                        Profile Index
-                    </Link>
-                    <Link name='*.profile.auctions' params={{ name: 'KycKyc' }}>
-                        Profile - Auctions
-                    </Link>
-                </nav>
-                <Route name={'*.index'}>
-                    <PageContent name='index' />
-                </Route>
-                <Route name={'*.profile'}>
-                    <ProfileWithNode>
-                        <Route name={'*.profile.index'}>
-                            <PageContent name='Profile index' />
-                        </Route>
-                        <Route name={'*.profile.auctions'}>
-                            <PageContent name='Auctions index' />
-                        </Route>
-                    </ProfileWithNode>
-                </Route>
+                <div>
+                    <RouteState name='*.profile'>
+                        {(state) => {
+                            console.debug('render');
+                            return <div>{state!.name}</div>;
+                        }}
+                    </RouteState>
+                </div>
             </RouterProvider>
         );
 
         let { getByText } = render(reactApp);
-
         screen.debug();
         await act(async () => {
-            // await router.navigate('en.profile.index', { name: 'KycKyc' });
+            await router.navigate('*.profile.index', { name: 'KycKyc' });
+        });
+
+        getByText('en.profile.index');
+        await act(async () => {
+            await router.navigate('*.profile.auctions', { name: 'KycKyc' });
+        });
+
+        getByText('en.profile.auctions');
+
+        screen.debug();
+    });
+
+    it('links are working', async () => {
+        const router = createRouter();
+        await router.start('/');
+        const reactApp = createReactApp(router, ({ children }) => <div>{children}</div>);
+
+        let { getByText } = render(reactApp);
+
+        getByText('Page content of index');
+        await act(async () => {
             let link = getByText('Profile Index');
             link.click();
         });
 
-        screen.debug();
+        getByText('Page content of Profile index');
         await act(async () => {
-            // await router.navigate('en.profile.auctions', { name: 'KycKyc' });
             let link = getByText('Profile - Auctions');
             link.click();
         });
 
-        screen.debug();
+        getByText('Page content of Auctions index');
     });
 
     describe('Hooks', () => {
@@ -167,14 +115,14 @@ describe('router42 react', () => {
                 router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: 'en.profile' });
             });
 
-            getByText('Page content, Profile index');
+            getByText('Page content of Profile index');
 
             await act(async () => {
                 let link = getByText('Index');
                 link.click();
             });
 
-            getByText('Page content, index');
+            getByText('Page content of index');
             expect(spy).toHaveBeenCalled();
             expect(spy.mock.calls[0][0]).toBe('@@event/node/reload');
         });
@@ -209,21 +157,21 @@ describe('router42 react', () => {
                 link.click();
             });
 
-            getByText('Page content, Profile index');
+            getByText('Page content of Profile index');
 
             await act(async () => {
                 let link = getByText('Profile - Auctions');
                 link.click();
             });
 
-            getByText('Page content, Auctions index');
+            getByText('Page content of Auctions index');
 
             await act(async () => {
                 let link = getByText('To main');
                 link.click();
             });
 
-            getByText('Page content, index');
+            getByText('Page content of index');
 
             expect(renderCounter.mock.calls.length).toBe(1);
         });
@@ -254,21 +202,21 @@ describe('router42 react', () => {
                 link.click();
             });
 
-            getByText('Page content, Profile index');
+            getByText('Page content of Profile index');
 
             await act(async () => {
                 let link = getByText('Profile - Auctions');
                 link.click();
             });
 
-            getByText('Page content, Auctions index');
+            getByText('Page content of Auctions index');
 
             await act(async () => {
                 let link = getByText('Index');
                 link.click();
             });
 
-            getByText('Page content, index');
+            getByText('Page content of index');
 
             expect(renderCounter.mock.calls.length).toBe(2);
         });
@@ -283,17 +231,17 @@ describe('router42 react', () => {
             type WithRouterProps = {
                 router: Router42<any, Node<any>> | null;
             };
-            class ComponentRouter extends React.Component<WithRouterProps> {
+            class ComponentWithRouter extends React.Component<WithRouterProps> {
                 render() {
                     let { router } = this.props;
                     renderCounter(router);
                     return <div></div>;
                 }
             }
-            const Wrapped = withRouter(ComponentRouter);
+            const Wrapped = withRouter(ComponentWithRouter);
 
             // @ts-ignore
-            expect(Wrapped.render.displayName).toBe('forwardRef(withRouter(ComponentRouter))');
+            expect(Wrapped.render.displayName).toBe('forwardRef(withRouter(ComponentWithRouter))');
 
             const reactApp = (
                 <RouterProvider router={router}>
@@ -324,17 +272,17 @@ describe('router42 react', () => {
                 router: Router42<any, Node<any>> | null;
                 state: State<Node<any>> | null;
             };
-            class ComponentRouter extends React.Component<WithRouterProps> {
+            class ComponentWithRouterState extends React.Component<WithRouterProps> {
                 render() {
                     let { router, state } = this.props;
                     renderCounter(state?.name);
                     return <div></div>;
                 }
             }
-            const Wrapped = withRouterState(ComponentRouter);
+            const Wrapped = withRouterState(ComponentWithRouterState);
 
             // @ts-ignore
-            expect(Wrapped.render.displayName).toBe('forwardRef(withRouterState(ComponentRouter))');
+            expect(Wrapped.render.displayName).toBe('forwardRef(withRouterState(ComponentWithRouterState))');
 
             const reactApp = (
                 <RouterProvider router={router}>
@@ -366,17 +314,18 @@ describe('router42 react', () => {
             type WithRouterProps = {
                 node: Node<any> | null | undefined;
             };
-            class ComponentRouter extends React.Component<WithRouterProps> {
+            class ComponentWithNode extends React.Component<WithRouterProps> {
                 render() {
                     let { node } = this.props;
+                    const Component = node!.components.main;
                     renderCounter(node?.name);
-                    return <div>{node?.components.main || null}</div>;
+                    return <Component />;
                 }
             }
-            const Wrapped = withNode('en.profile')(ComponentRouter);
+            const Wrapped = withNode('en.profile')(ComponentWithNode);
 
             // @ts-ignore
-            expect(Wrapped.render.displayName).toBe('forwardRef(withNode(ComponentRouter))');
+            expect(Wrapped.render.displayName).toBe('forwardRef(withNode(ComponentWithNode))');
 
             const reactApp = (
                 <RouterProvider router={router}>
@@ -472,13 +421,7 @@ const createRouter = (options: Partial<Options> = {}) => {
 };
 
 const PageContent = ({ name, children }: { name: string; children?: React.ReactNode }) => {
-    return <div>Page content, {name}</div>;
-};
-
-const ProfileWithNode = ({ children }: { children: React.ReactNode }) => {
-    const node = useRouteNode('en.profile');
-    const Component = node!.components.main;
-    return <Component>{children}</Component>;
+    return <div>Page content of {name}</div>;
 };
 
 const createReactApp = (router: Router42<any, any>, Profile: React.ComponentType<any>) => {

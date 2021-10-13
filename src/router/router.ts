@@ -9,6 +9,7 @@ import type { EventCallback, EventCallbackNode, EventParamsNavigation, EventPara
 export interface NavigationOptions {
     /** replace in browserHistory, nothing else is affected ? */
     replace?: boolean;
+    /** Will trigger reactivation of asyncRequests and OnEnter Node functions */
     reload?: boolean;
     skipTransition?: boolean;
     force?: boolean;
@@ -520,7 +521,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         let segmentName: string | null = null;
         for (let value of compFrom) {
             segmentName = segmentName === null ? value : `${segmentName}.${value}`;
-            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.reload || toActivate[0].ignoreReloadCall)) {
+            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.reload || toActivate[index].ignoreReloadCall)) {
                 let commonNode = toActivate.splice(0, 1)[0];
                 toDeactivate.splice(0, 1);
                 intersection.push(commonNode);

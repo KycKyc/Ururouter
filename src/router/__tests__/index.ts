@@ -487,6 +487,9 @@ describe('router42', () => {
         expect(indexEnter.mock.calls.length).toBe(2);
     });
 
+    // TODO
+    it('transition, reload, should work with some intermediate nodes', async () => {});
+
     it('transition, route not found, no fallbacks are defined', async () => {
         const router = new Router42([
             { name: 'index', path: '/' },
