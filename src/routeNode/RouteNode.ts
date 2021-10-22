@@ -62,7 +62,6 @@ export class RouteNode {
     nameMap: Map<string, this>;
     masterNode: this;
     isRoot: boolean;
-    type: 'master' | 'subordinate' = 'master';
 
     constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: BasicRouteSignature) {
         this.name = name;
@@ -161,7 +160,7 @@ export class RouteNode {
         return this;
     }
 
-    private addRouteNode(route: this): this {
+    private addRouteNode(node: this): this {
         // If node have trailing slash, remove it, cause parents can't have trailing slashes.
         // Only exception is `/` path
         if (trailingSlash.test(this.path)) {
@@ -170,17 +169,17 @@ export class RouteNode {
         }
 
         // Move absolute node under control of `rootNode`
-        if (route.absolute && this !== this.masterNode) {
-            this.masterNode.addRouteNode(route);
+        if (node.absolute && this !== this.masterNode) {
+            this.masterNode.addRouteNode(node);
             return this;
         }
 
         // `route` have childs, some of them are absolute ?
         // move them under control of `rootNode`
         let deferredSort = false;
-        for (let [childName, childNode] of route.nameMap.entries()) {
+        for (let [childName, childNode] of node.nameMap.entries()) {
             if (childNode.absolute) {
-                route.nameMap.delete(childName);
+                node.nameMap.delete(childName);
                 this.masterNode.addRouteNode(childNode);
                 deferredSort = true;
             }
@@ -192,45 +191,50 @@ export class RouteNode {
         }
 
         // Process with attempt to add `route` as a child of this node
-        const names = route.name.split('.');
+        const names = node.name.split('.');
         if (names.length === 1) {
             // Check if name already defined
-            if (this.nameMap.has(route.name) && this.nameMap.get(route.name) !== route) {
-                throw new Error(`Name "${route.name}" is already defined in this node: "${this.name}", will not overwrite`);
+            if (this.nameMap.has(node.name) && this.nameMap.get(node.name) !== node) {
+                throw new Error(`Name "${node.name}" is already defined as children of this node("${this.name}"), will not overwrite`);
             }
 
-            // Check if path already defined
+            // Check if path already defined somewhere inside child nodes
+            for (let childNode of this.nameMap.values()) {
+                if (childNode.path === node.path && childNode !== node) {
+                    throw new Error(`Path "${node.path}" is already defined as children of this node("${this.name}"), will not overwrite`);
+                }
+            }
             // if (this.pathMap.has(route.path) && this.pathMap.get(route.path) !== route) {
             //     throw new Error(`Path "${route.path}" is already defined in this node: "${this.name}", will not overwrite`);
             // }
 
             // if (this.nameMap.get(route.name) === route && this.pathMap.get(route.path) === route) {
-            if (this.nameMap.get(route.name) === route) {
+            if (this.nameMap.get(node.name) === node) {
                 // Already defined, no point in redefining the same node on the same name and path
                 return this;
             }
 
-            this.nameMap.set(route.name, route);
+            this.nameMap.set(node.name, node);
 
             if (
-                route.absolute &&
+                node.absolute &&
                 this.parser &&
                 (this.parser.hasUrlParams || this.parser.hasSpatParam || this.parser.hasMatrixParams || this.parser.hasQueryParams)
             ) {
                 console.warn(
-                    `Absolute child-Node was placed under Node that have params in their path, be sure that this child-node will migrate to another node, node: ${this.name}, child-node: ${route.name}`
+                    `Absolute child-Node was placed under Node that have params in their path, be sure that this child-node will migrate to another node, node: ${this.name}, child-node: ${node.name}`
                 );
             }
 
-            route.propagateMaster(this);
+            node.propagateMaster(this);
         } else {
             // Locate parent node,`route.name` should already be descendant of this node.
             const nodes = this.getNodesByName(names.slice(0, -1).join('.'));
             if (nodes) {
-                route.name = names[names.length - 1];
-                nodes[nodes.length - 1].addRouteNode(route);
+                node.name = names[names.length - 1];
+                nodes[nodes.length - 1].addRouteNode(node);
             } else {
-                throw new Error(`Could not add route named '${route.name}', parent is missing.`);
+                throw new Error(`Could not add route named '${node.name}', parent is missing.`);
             }
         }
 

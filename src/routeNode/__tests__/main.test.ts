@@ -80,11 +80,11 @@ describe('RouteNode', function () {
 
         expect(function () {
             root.add({ name: 'home', path: '/profile' });
-        }).toThrow('Name "home" is already defined in this node: "", will not overwrite');
+        }).toThrow('Name "home" is already defined as children of this node(""), will not overwrite');
 
         expect(function () {
             root.add({ name: 'profile', path: '/home' });
-        }).toThrow('Path "/home" is already defined in this node: "", will not overwrite');
+        }).toThrow('Path "/home" is already defined as children of this node(""), will not overwrite');
 
         expect(function () {
             root.add({ name: 'home.profile', path: '/home' });
