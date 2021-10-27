@@ -17,7 +17,7 @@ const optTrailingSlash = (source: string, strictTrailingSlash: boolean) => {
         return source;
     }
 
-    return source.replace(/\\\/$/, '');
+    return source.replace(/\\\/$/, '') + '(?:\\/)?'; // need for testing of `/my-path/` path, when source is `/my-path` and trailingSlash is optional
 };
 
 const upToDelimiter = (source: string) => {

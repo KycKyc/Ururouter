@@ -34,7 +34,6 @@ describe('React', () => {
                 <div>
                     <RouteState name='*.profile'>
                         {(state) => {
-                            console.debug('render');
                             return <div>{state!.name}</div>;
                         }}
                     </RouteState>
@@ -43,7 +42,6 @@ describe('React', () => {
         );
 
         let { getByText } = render(reactApp);
-        screen.debug();
         await act(async () => {
             await router.navigate('*.profile.index', { name: 'KycKyc' });
         });
@@ -54,8 +52,6 @@ describe('React', () => {
         });
 
         getByText('en.profile.auctions');
-
-        screen.debug();
     });
 
     it('links are working', async () => {

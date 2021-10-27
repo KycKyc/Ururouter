@@ -261,7 +261,6 @@ describe('Path', () => {
         const path = new Path('/univers');
 
         expect(path.partialTest('/university')).toBeDefined();
-        expect(path.partialTest('/university', { delimited: false })).toEqual({});
         expect(path.partialTest('/univers/hello')).toEqual({});
     });
 

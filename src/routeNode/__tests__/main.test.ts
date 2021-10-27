@@ -540,13 +540,9 @@ describe('RouteNode', function () {
             children: [new RouteNode({ name: 'path', path: '/path/:path', children: [new RouteNode({ name: 'absolute', path: '~/absolute' })] })],
         });
 
-        // const consoleWarn = console.warn;
-        // console.warn = jest.fn();
         expect(consoleSpy).toHaveBeenCalledWith(
             'Absolute child-Node was placed under Node that have params in their path, be sure that this child-node will migrate to another node, node: path, child-node: absolute'
         );
-
-        // console.warn = consoleWarn;
     });
 
     it('should build absolute paths', function () {
@@ -866,11 +862,8 @@ describe('RouteNode', function () {
             ],
         });
 
-        // console.dir(route, { depth: 5 });
         let enNode = route.getNodeByName('en.profile.index');
         let koNode = route.getNodeByName('ko.profile.index');
-        // console.debug(enNode);
-        // console.debug(koNode);
         expect(koNode === enNode).toBeTruthy();
     });
 
@@ -1030,18 +1023,18 @@ describe('RouteNode', function () {
 
             let result;
             // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
-            console.dir(tree, { depth: null, breakLength: 140 });
+            // console.dir(tree, { depth: null, breakLength: 140 });
             result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
-            console.dir(result, { depth: null, breakLength: 140 });
+            // console.dir(result, { depth: null, breakLength: 140 });
             result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
-            console.dir(result, { depth: null, breakLength: 140 });
+            // console.dir(result, { depth: null, breakLength: 140 });
             result = tree.matchPath('/user/reviews/1');
-            console.dir(result, { depth: null, breakLength: 140 });
+            // console.dir(result, { depth: null, breakLength: 140 });
 
             let _path = tree.buildPath('user.reviews.index', {}, { trailingSlashMode: 'never' });
-            console.dir(_path);
+            // console.dir(_path);
             _path = tree.buildPath('user.reviews.index', {});
-            console.dir(_path);
+            // console.dir(_path);
         });
     });
 });

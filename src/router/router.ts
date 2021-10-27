@@ -507,27 +507,22 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         toStateIds = toState.name.split('.');
         toActivate = this.rootNode.getNodesByName(toState.name) || [];
 
-        // if (toNavigationOpts.reload) {
-        //     return {
-        //         toDeactivate,
-        //         toActivate,
-        //         intersection,
-        //     };
-        // }
-
-        let [compFrom, compTo] = fromState?.name.length || 0 > toState.name.length ? [toStateIds, fromStateIds] : [fromStateIds, toStateIds];
+        let [compBase, compTo] = fromState?.name.length || 0 > toState.name.length ? [toStateIds, fromStateIds] : [fromStateIds, toStateIds];
 
         let index = 0;
+        let node = 0;
         let segmentName: string | null = null;
-        for (let value of compFrom) {
+        for (let value of compBase) {
             segmentName = segmentName === null ? value : `${segmentName}.${value}`;
-            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.reload || toActivate[index].ignoreReloadCall)) {
-                let commonNode = toActivate.splice(0, 1)[0];
-                toDeactivate.splice(0, 1);
+            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.reload || toActivate[node].ignoreReloadCall)) {
+                let commonNode = toActivate.splice(node, 1)[0];
+                toDeactivate.splice(node, 1);
                 intersection.push(commonNode);
                 index += 1;
             } else {
-                break;
+                index += 1;
+                node += 1;
+                // break;
             }
         }
 

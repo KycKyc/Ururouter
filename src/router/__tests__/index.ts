@@ -71,14 +71,14 @@ class EvenBetter<Dependencies> extends Node<Dependencies> {
 }
 
 describe('router42', () => {
-    it('general, should start', async () => {
+    it('should start', async () => {
         const router = createRouter();
         let result = await router.start('/');
         expect(result.type).toBe('success');
         expect(result.payload.toState?.name).toBe('en.index');
     });
 
-    it('general, should throw if root node is not correct', async () => {
+    it('should throw if root node is not correct', async () => {
         let create = () => {
             new Router42({
                 name: 'auctions',
@@ -94,7 +94,7 @@ describe('router42', () => {
         expect(create).toThrow('First node in a tree should have empty name and path, e.g. `new Route({children: [...]})` or `{children: [...]}');
     });
 
-    it("general, shoulnd't allow to start twice", async () => {
+    it("shouldn't be allowed to start twice", async () => {
         const router = createRouter();
         await router.start('/');
         await expect(async () => {
@@ -102,7 +102,10 @@ describe('router42', () => {
         }).rejects.toThrow('already started');
     });
 
-    it('general, all nodes should share the same instance', () => {
+    /**
+     * here we are going to mix `RouteNode` with `Node`.
+     */
+    it('should throw, all nodes should share the same instance', () => {
         expect(() => {
             new Router42({
                 children: [new Node({ name: 'en', path: '/' }), new Node({ name: 'ru', path: '/ru' }), new RouteNode({ name: 'ko', path: '/ko' })],
@@ -110,7 +113,7 @@ describe('router42', () => {
         }).toThrow('RouteNode.add() expects routes to be the same instance as the parrent node.');
     });
 
-    it('general, supeset of Route node class are working', async () => {
+    it('should work with superset of Route node class', async () => {
         let checkFn = jest.fn();
         // const r = new EvenBetter({
         //     name: '',
@@ -162,131 +165,106 @@ describe('router42', () => {
         expect(checkFn.mock.calls[1][0]).toBe('page');
     });
 
-    it('transition, params are passed to the result', async () => {
-        const router = createRouter();
+    describe('transition\\navigation', () => {
+        it('navigation should work', async () => {
+            const router = createRouter();
 
-        let result = await router.start('/');
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('en.index');
-        result = await router.navigate('en.profile.index', { name: 'KycKyc', searchOne: ['kek', 'pek'] });
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('en.profile.index');
-        expect(result.payload.toState?.params).toEqual({ name: 'KycKyc', searchOne: ['kek', 'pek'] });
-    });
+            let result = await router.start('/');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('en.index');
 
-    it('transition, working', async () => {
-        const router = createRouter();
+            result = await router.navigate('en.auctions');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('en.auctions');
+        });
 
-        let result = await router.start('/auctions');
-        result = await router.navigate('en.profile.reviews.page', { name: 'KycKyc', page: 1 });
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.params.page).toBe(1);
-        result = await router.navigate('en.profile.reviews.page', { name: 'KycKyc', page: 2 });
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.params.page).toBe(2);
-        expect(result.payload.fromState?.params.page).toBe(1);
-        expect(result.payload.toDeactivate!.length).toBe(1);
-        expect(result.payload.toActivate!.length).toBe(1);
-        expect(result.payload.toDeactivate![0].name).toBe('page');
-        expect(result.payload.toActivate![0].name).toBe('page');
-    });
+        it('navigation with params should work', async () => {
+            const router = createRouter();
 
-    it('transition, asyncRequests & onEnter are working', async () => {
-        const router = new Router42([
-            {
-                name: 'user',
-                asyncRequests: () => {
-                    return new Promise((resolve) => {
-                        setTimeout(() => {
-                            resolve('user(async)');
-                        }, 2000);
-                    });
-                },
-                onEnter: async ({ asyncResult }) => {
-                    expect(asyncResult).toBe('user(async)');
-                    await new Promise((resolve) => {
-                        setTimeout(() => {
-                            resolve('user');
-                        }, 5000);
-                    });
+            let result = await router.start('/');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('en.index');
 
-                    return { passthrough: 'kek' };
-                },
-                path: '/user',
-                children: [
-                    {
-                        name: 'orders',
-                        path: '/orders/:id',
-                        asyncRequests: () => {
-                            return new Promise((resolve) => {
-                                setTimeout(() => {
-                                    resolve('user.orders(async)');
-                                }, 500);
-                            });
-                        },
-                        onEnter: ({ asyncResult, passthrough }) => {
-                            expect(asyncResult).toBe('user.orders(async)');
-                        },
-                    },
-                    { name: 'profile', path: '/:profile?searchOne' },
-                    { name: 'auctions', path: '/auctions' },
-                    {
-                        name: 'review',
-                        path: '/review/:page',
-                        asyncRequests: () => {
-                            return new Promise((resolve) => {
-                                setTimeout(() => {
-                                    resolve('user.review(async)');
-                                }, 500);
-                            });
-                        },
-                        onEnter: async ({ asyncResult, passthrough }) => {
-                            expect(asyncResult).toBe('user.review(async)');
-                            return await new Promise((resolve) => {
-                                setTimeout(() => {
-                                    resolve();
-                                }, 1000);
-                            });
-                        },
-                    },
-                ],
-            },
-            {
-                name: 'orders',
-                path: '/orders',
-                children: [
-                    { name: 'index', path: '/' },
-                    { name: 'top', path: '/top/:id' },
-                    { name: 'statistics', path: '/statistics?type' },
-                    { name: 'drop', path: '/drop' },
-                ],
-            },
-        ]);
+            result = await router.navigate('en.profile.index', { name: 'KycKyc', searchOne: ['kek', 'pek'] });
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('en.profile.index');
+            expect(result.payload.toState?.params).toEqual({ name: 'KycKyc', searchOne: ['kek', 'pek'] });
+            expect(result.payload.toState?.meta?.navigation).toEqual({});
+            expect(result.payload.toState?.meta?.params).toEqual({ en: {}, 'en.profile': { name: 'url' }, 'en.profile.index': {} });
+        });
 
-        await router.start('/orders');
-        let wait1 = router.navigate('user.orders', { id: 1 });
-        let wait2 = router.navigate('user.review', { page: 1 });
-        const results = await Promise.all([wait1, wait2]);
-        expect(results[0].type).toBe('error');
-        expect(results[0].payload.error?.code).toBe(errorCodes.TRANSITION_CANCELLED);
-        expect((results[1] as any).type).toBe('success');
-    });
+        it('working', async () => {
+            const router = createRouter();
 
-    it('transition, should cancel right after onEnter func', async () => {
-        const router = new Router42(
-            [
+            let result = await router.start('/auctions');
+            result = await router.navigate('en.profile.reviews.page', { name: 'KycKyc', page: 1 });
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.params.page).toBe(1);
+            result = await router.navigate('en.profile.reviews.page', { name: 'KycKyc', page: 2 });
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.params.page).toBe(2);
+            expect(result.payload.fromState?.params.page).toBe(1);
+            expect(result.payload.toDeactivate!.length).toBe(1);
+            expect(result.payload.toActivate!.length).toBe(1);
+            expect(result.payload.toDeactivate![0].name).toBe('page');
+            expect(result.payload.toActivate![0].name).toBe('page');
+        });
+
+        it('asyncRequests & onEnter functions should work', async () => {
+            const inspector = jest.fn();
+            const router = new Router42([
                 {
-                    name: 'orders',
-                    path: '/orders',
+                    name: 'user',
+                    asyncRequests: () => {
+                        inspector('user(asyncCall)');
+                        return new Promise((resolve) => {
+                            setTimeout(() => {
+                                resolve('user(asyncResult)');
+                            }, 2000);
+                        });
+                    },
+                    onEnter: async ({ asyncResult }) => {
+                        inspector(asyncResult); //.toBe('user(async)');
+                        await new Promise((resolve) => {
+                            setTimeout(() => {
+                                resolve('user(OnEnterResult)');
+                            }, 5000);
+                        });
+
+                        return { passthrough: 'kek' };
+                    },
+                    path: '/user',
                     children: [
                         {
-                            name: 'index',
-                            path: '/',
+                            name: 'orders',
+                            path: '/orders/:id',
+                            asyncRequests: () => {
+                                inspector('user.orders(asyncCall)');
+                                return new Promise((resolve) => {
+                                    setTimeout(() => {
+                                        resolve('user.orders(asyncResult)');
+                                    }, 500);
+                                });
+                            },
+                            onEnter: ({ asyncResult, passthrough }) => {
+                                inspector(asyncResult); //.toBe('user.orders(async)');
+                            },
                         },
+                        { name: 'profile', path: '/:profile?searchOne' },
+                        { name: 'auctions', path: '/auctions' },
                         {
-                            name: 'top',
-                            path: '/top/:id',
-                            onEnter: async ({}) => {
+                            name: 'review',
+                            path: '/review/:page',
+                            asyncRequests: () => {
+                                inspector('user.review(asyncCall)');
+                                return new Promise((resolve) => {
+                                    setTimeout(() => {
+                                        resolve('user.review(asyncResult)');
+                                    }, 500);
+                                });
+                            },
+                            onEnter: async ({ asyncResult, passthrough }) => {
+                                inspector(asyncResult); //.toBe('user.review(async)');
                                 return await new Promise((resolve) => {
                                     setTimeout(() => {
                                         resolve();
@@ -294,355 +272,444 @@ describe('router42', () => {
                                 });
                             },
                         },
+                    ],
+                },
+                {
+                    name: 'orders',
+                    path: '/orders',
+                    children: [
+                        { name: 'index', path: '/' },
+                        { name: 'top', path: '/top/:id' },
                         { name: 'statistics', path: '/statistics?type' },
                         { name: 'drop', path: '/drop' },
                     ],
                 },
-            ],
-            {},
-            { lel: '' }
-        );
+            ]);
 
-        await router.start('/orders');
-        let firstNavigarion = router.navigate('orders.top', { id: 1 });
-        let simulatedDelay = new Promise((resolve) => {
-            setTimeout(() => {
-                resolve(router.navigate('orders.drop'));
-            }, 250);
+            await router.start('/orders');
+            let wait1 = router.navigate('user.orders', { id: 1 });
+            let wait2 = router.navigate('user.review', { page: 1 });
+            const results = await Promise.all([wait1, wait2]);
+            expect(results[0].type).toBe('error');
+            expect(results[0].payload.error?.code).toBe(errorCodes.TRANSITION_CANCELLED);
+            expect(results[1].type).toBe('success');
+            expect(results[1].payload.toState?.name).toBe('user.review');
+            expect(inspector.mock.calls[0][0]).toBe('user(asyncCall)');
+            expect(inspector.mock.calls[1][0]).toBe('user.orders(asyncCall)');
+            expect(inspector.mock.calls[2][0]).toBe('user(asyncCall)');
+            expect(inspector.mock.calls[3][0]).toBe('user.review(asyncCall)');
+            expect(inspector.mock.calls[4][0]).toBe('user(asyncResult)');
+            expect(inspector.mock.calls[5][0]).toBe('user.review(asyncResult)');
         });
 
-        const results = await Promise.all([firstNavigarion, simulatedDelay]);
-        expect(results[0].type).toBe('error');
-        expect(results[0].payload.error?.code).toBe(errorCodes.TRANSITION_CANCELLED);
-        expect((results[1] as any).type).toBe('success');
-    });
+        it('should cancel right after onEnter func after second navigation call (request delay simulation)', async () => {
+            const router = new Router42(
+                [
+                    {
+                        name: 'orders',
+                        path: '/orders',
+                        children: [
+                            {
+                                name: 'index',
+                                path: '/',
+                            },
+                            {
+                                name: 'top',
+                                path: '/top/:id',
+                                onEnter: async ({}) => {
+                                    return await new Promise((resolve) => {
+                                        setTimeout(() => {
+                                            resolve();
+                                        }, 1000);
+                                    });
+                                },
+                            },
+                            { name: 'statistics', path: '/statistics?type' },
+                            { name: 'drop', path: '/drop' },
+                        ],
+                    },
+                ],
+                {},
+                { lel: '' }
+            );
 
-    it('transition, default params', async () => {
-        const router = new Router42([
-            { name: 'index', path: '/' },
-            { name: 'section', path: '/:section', defaultParams: { section: 'kek', q: 'q' } },
-        ]);
+            await router.start('/orders');
+            let firstNavigarion = router.navigate('orders.top', { id: 1 });
+            let simulatedDelay = new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve(router.navigate('orders.drop'));
+                }, 250);
+            });
 
-        await router.start('/');
-        let result = await router.navigate('section');
-        expect(result.payload.toState?.params).toEqual({ section: 'kek', q: 'q' });
-    });
+            const results = await Promise.all([firstNavigarion, simulatedDelay]);
+            expect(results[0].type).toBe('error');
+            expect(results[0].payload.error?.code).toBe(errorCodes.TRANSITION_CANCELLED);
+            expect((results[1] as any).type).toBe('success');
+        });
 
-    it('transition, redirect', async () => {
-        const router = new Router42(
-            [
+        it('default params are working', async () => {
+            const router = new Router42([
                 { name: 'index', path: '/' },
-                { name: 'auth', path: '/auth' },
+                { name: 'section', path: '/:section', defaultParams: { section: 'kek', q: 'q' } },
+            ]);
+
+            await router.start('/');
+            let result = await router.navigate('section');
+            expect(result.payload.toState?.params).toEqual({ section: 'kek', q: 'q' });
+        });
+
+        it('redirect should work (simulating auth requirenment)', async () => {
+            const router = new Router42(
+                [
+                    { name: 'index', path: '/' },
+                    { name: 'auth', path: '/auth' },
+                    {
+                        name: 'protected',
+                        path: '/protected',
+                        onEnter: ({ dependencies }) => {
+                            if (!dependencies!.authorized) {
+                                throw new Redirect({ to: 'auth', params: { return_to: 'protected' } });
+                            }
+                        },
+                    },
+                ],
+                {},
+                { authorized: false }
+            );
+
+            await router.start('/');
+            let result = await router.navigate('protected');
+            expect(result.payload.toState?.name).toBe('auth');
+            expect(result.payload.toState?.params).toEqual({ return_to: 'protected' });
+        });
+
+        it('params in the path of the node, shold affect node activation', async () => {
+            let onEnter = jest.fn();
+            const router = new Router42([
                 {
-                    name: 'protected',
-                    path: '/protected',
-                    onEnter: ({ dependencies }) => {
-                        if (!dependencies!.authorized) {
-                            throw new Redirect({ to: 'auth', params: { return_to: 'protected' } });
-                        }
+                    name: 'auctions',
+                    path: '/auctions?type',
+                    onEnter,
+                    children: [
+                        { name: 'index', path: '/' },
+                        { name: 'recent', path: '/recent' },
+                        { name: 'search', path: '/search' },
+                    ],
+                },
+            ]);
+
+            let result = await router.start('/auctions');
+            result = await router.navigate('auctions.search', { type: 'lich', weapon: 'hek' });
+            result = await router.navigate('auctions.search', { type: 'riven', weapon: 'tonkor' });
+            expect(result.payload.toActivate?.length).toBe(1);
+            expect(result.payload.toDeactivate?.length).toBe(1);
+            expect(result.payload.toActivate![0].name).toBe('auctions');
+            expect(result.payload.toDeactivate![0].name).toBe('auctions');
+            expect(onEnter.mock.calls.length).toBe(3);
+            // omit one param, should detect and reactivate `auctions` node anyway
+            result = await router.navigate('auctions.search', { weapon: 'tonkor' });
+            expect(result.payload.toActivate?.length).toBe(1);
+            expect(result.payload.toDeactivate?.length).toBe(1);
+            expect(result.payload.toActivate![0].name).toBe('auctions');
+            expect(result.payload.toDeactivate![0].name).toBe('auctions');
+        });
+
+        it('should catch unknown error', async () => {
+            const router = new Router42([
+                { name: 'index', path: '/' },
+                {
+                    name: 'test',
+                    path: '/test',
+                    onEnter: () => {
+                        throw new Error('Unexpected error');
                     },
                 },
-            ],
-            {},
-            { authorized: false }
-        );
+            ]);
 
-        await router.start('/');
-        let result = await router.navigate('protected');
-        expect(result.payload.toState?.name).toBe('auth');
-        expect(result.payload.toState?.params).toEqual({ return_to: 'protected' });
-    });
+            let cb = jest.fn();
 
-    it('transition, pinpointed params in path are matter', async () => {
-        let onEnter = jest.fn();
-        const router = new Router42([
-            {
-                name: 'auctions',
-                path: '/auctions?type',
-                onEnter: onEnter,
-                children: [
-                    { name: 'index', path: '/' },
-                    { name: 'recent', path: '/recent' },
-                    { name: 'search', path: '/search' },
-                ],
-            },
-        ]);
+            router.addEventListener(events.TRANSITION_UNKNOWN_ERROR, cb);
 
-        let result = await router.start('/auctions');
-        result = await router.navigate('auctions.search', { type: 'lich', weapon: 'hek' });
-        result = await router.navigate('auctions.search', { type: 'riven', weapon: 'tonkor' });
-        expect(result.payload.toActivate?.length).toBe(2);
-        expect(result.payload.toDeactivate?.length).toBe(2);
-        expect(result.payload.toActivate![0].name).toBe('auctions');
-        expect(result.payload.toDeactivate![0].name).toBe('auctions');
-        expect(onEnter.mock.calls.length).toBe(3);
-        // omit one param, should detect and reactivate `auctions` node anyway
-        result = await router.navigate('auctions.search', { weapon: 'tonkor' });
-        expect(result.payload.toActivate?.length).toBe(2);
-        expect(result.payload.toDeactivate?.length).toBe(2);
-        expect(result.payload.toActivate![0].name).toBe('auctions');
-        expect(result.payload.toDeactivate![0].name).toBe('auctions');
-    });
+            await router.start('/');
+            let result = await router.navigate('test');
+            expect(result.type).toBe('error');
 
-    it('transition, catch unknown error', async () => {
-        const router = new Router42([
-            { name: 'index', path: '/' },
-            {
-                name: 'test',
-                path: '/test',
-                onEnter: () => {
-                    throw new Error('Unexpected error');
+            expect(cb.mock.calls.length).toBe(1);
+            expect(cb.mock.calls[0][0]['error']['message']).toBe('Unexpected error');
+        });
+
+        it('should work if states are the same and force == true', async () => {
+            const router = createRouter();
+
+            await router.start('/');
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
+            let result = await router.navigate('en.profile.index', { name: 'KycKyc' }, { force: true });
+            expect(result.type).toBe('success');
+        });
+
+        it('should throw if states are the same and force == false', async () => {
+            const router = createRouter();
+
+            await router.start('/');
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
+            let result = await router.navigate('en.profile.index', { name: 'KycKyc' });
+            expect(result.type).toBe('error');
+            expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
+        });
+
+        it('reload should work', async () => {
+            const langEnter = jest.fn();
+            const indexEnter = jest.fn();
+            const mainNodes = [
+                {
+                    name: 'auctions',
+                    path: '/auctions?type',
+                    children: [
+                        { name: 'index', path: '/', onEnter: indexEnter },
+                        { name: 'recent', path: '/recent' },
+                        { name: 'search', path: '/search' },
+                    ],
                 },
-            },
-        ]);
+            ];
 
-        let cb = jest.fn();
+            const router = new Router42([
+                { name: 'en', path: '/', children: mainNodes, onEnter: langEnter },
+                { name: 'ru', path: '/ru', children: mainNodes, onEnter: langEnter },
+                { name: 'ko', path: '/ko', children: mainNodes, onEnter: langEnter },
+            ]);
 
-        router.addEventListener(events.TRANSITION_UNKNOWN_ERROR, cb);
+            await router.start('/auctions');
+            let result = await router.navigate('*.auctions.index', {});
+            expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
+            result = await router.navigate('*.auctions.index', {}, { reload: true });
+            expect(result.payload.toActivate?.length).toBe(3);
+            expect(langEnter.mock.calls.length).toBe(2);
+            expect(indexEnter.mock.calls.length).toBe(2);
+        });
 
-        await router.start('/');
-        let result = await router.navigate('test');
-        expect(result.type).toBe('error');
+        it('ignoreReloadCall, nodes that have ignoreReloadCall setting, should work correctly', async () => {
+            const langEnter = jest.fn();
+            const indexEnter = jest.fn();
+            const mainNodes = [
+                {
+                    name: 'auctions',
+                    path: '/auctions?type',
+                    children: [
+                        { name: 'index', path: '/', onEnter: indexEnter },
+                        { name: 'recent', path: '/recent' },
+                        { name: 'search', path: '/search' },
+                    ],
+                },
+            ];
 
-        expect(cb.mock.calls.length).toBe(1);
-        expect(cb.mock.calls[0][0]['error']['message']).toBe('Unexpected error');
+            const router = new Router42([
+                { name: 'en', path: '/', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
+                { name: 'ru', path: '/ru', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
+                { name: 'ko', path: '/ko', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
+            ]);
+
+            await router.start('/auctions');
+            let result = await router.navigate('*.auctions.index', {});
+            expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
+            result = await router.navigate('*.auctions.index', {}, { reload: true });
+            expect(result.payload.toActivate?.length).toBe(2);
+            expect(langEnter.mock.calls.length).toBe(1);
+            expect(indexEnter.mock.calls.length).toBe(2);
+        });
+
+        it('ignoreReloadCall, should work even if node is intermediate node', async () => {
+            const onEnter = jest.fn();
+            const nodes = [
+                {
+                    name: 'item',
+                    path: '/item',
+                    onEnter,
+                    children: [
+                        {
+                            name: 'orders',
+                            path: '/orders',
+                            ignoreReloadCall: true,
+                            onEnter,
+                            children: [
+                                {
+                                    name: 'top',
+                                    path: '/top',
+                                    onEnter,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ];
+
+            const router = new Router42(nodes);
+            let result = await router.start('/item/orders/top');
+            result = await router.navigate('item.orders.top', {}, { reload: true });
+            expect(result.payload.toActivate?.length).toBe(2);
+            expect(result.payload.toDeactivate?.length).toBe(2);
+            expect(onEnter.mock.calls.length).toBe(5);
+        });
+
+        it('should throw if route was not found and no fallbacks were defined', async () => {
+            const router = new Router42([
+                { name: 'index', path: '/' },
+                { name: 'one', path: '/one' },
+                { name: 'two', path: '/two' },
+            ]);
+
+            await router.start('/');
+            let result = await router.navigate('nowhere');
+            expect(result.type).toBe('error');
+            expect(result.payload.error?.code).toBe(errorCodes.ROUTE_NOT_FOUND);
+        });
+
+        it('should navigate by path instade of name', async () => {
+            const router = createRouter();
+            await router.start('/');
+
+            let result = await router.navigateByPath('/auctions');
+            expect(result.payload.toState?.name).toBe('en.auctions.index');
+
+            result = await router.navigateByPath('/auctions?type=kuva');
+            expect(result.payload.toState?.name).toBe('en.auctions.index');
+            expect(result.payload.toState?.params).toEqual({ type: 'kuva' });
+
+            result = await router.navigateByPath('/profile/KycKyc/reviews/2');
+            expect(result.payload.toState?.name).toBe('en.profile.reviews.page');
+            expect(result.payload.toState?.params).toEqual({ name: 'KycKyc', page: '2' });
+        });
+
+        it('should correctrly identify the current active route, full path', async () => {
+            const router = createRouter();
+            await router.start('/');
+            await router.navigate('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' });
+            expect(router.isActive('ru.profile.auctions', { name: 'KycKyc' })).toBe(true);
+            expect(router.isActive('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' })).toBe(true);
+            expect(router.isActive('ru.profile.auctions', { name: 'KycKyc' }, true, false)).toBe(false);
+        });
+
+        it('should correctrly identify the current active route, partial path', async () => {
+            const router = createRouter();
+            await router.start('/');
+            await router.navigate('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' });
+            expect(router.isActive('ru.profile', { name: 'KycKyc' }, false)).toBe(true);
+            expect(router.isActive('ru.profile', { name: 'KycKyc' })).toBe(false);
+        });
     });
 
-    it('transition, navigation should work if states are the same and force == true', async () => {
-        const router = createRouter();
+    describe('Not Found', () => {
+        it("should throw if notFoundRouteName name was set, but name wasn't defined in a node tree", async () => {
+            const router = createRouter({ notFoundRouteName: 'incorrectNotFound' });
 
-        await router.start('/');
-        await router.navigate('en.profile.index', { name: 'KycKyc' });
-        let result = await router.navigate('en.profile.index', { name: 'KycKyc' }, { force: true });
-        expect(result.type).toBe('success');
+            await router.start('/');
+            await expect(async () => {
+                await router.navigate('en.blackhole');
+            }).rejects.toThrow("404 page was set in options, but wasn't defined in routes");
+        });
+
+        it('should redirect to 404, if navigating to a route that does not exist', async () => {
+            const router = createRouter();
+
+            await router.start('/');
+            let result = await router.navigate('en.blackhole');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('en.notFound');
+        });
+
+        it('should work with wildcard(*) in notFoundRouteName', async () => {
+            const router = createRouter({ notFoundRouteName: '*.notFound' });
+
+            await router.start('/ru');
+            let result = await router.navigate('ru.blackhole');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('ru.notFound');
+        });
+
+        it("should work with wildcard(*) in notFoundRouteName, even if initial route name wasn't found in a tree", async () => {
+            const router = createRouter({ notFoundRouteName: '*.notFound' });
+            router.hooks.preNavigate = (name, params) => {
+                if (name === '*.notFound') {
+                    name = 'ko.notFound';
+                }
+
+                return [name, params];
+            };
+
+            let result = await router.start('/blackhole');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('ko.notFound');
+        });
     });
 
-    it('transition, navigation should not work if states are the same and force == false', async () => {
-        const router = createRouter();
+    describe('default route', () => {
+        it('should redirect to default route, if navigating to a route that does not exist', async () => {
+            const router = createRouter({ defaultRouteName: 'en.index', allowNotFound: false });
+            await router.start('/');
+            let result = await router.navigate('en.blackhole');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('en.index');
+        });
 
-        await router.start('/');
-        await router.navigate('en.profile.index', { name: 'KycKyc' });
-        let result = await router.navigate('en.profile.index', { name: 'KycKyc' });
-        expect(result.type).toBe('error');
-        expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
+        it("should throw if defaultRouteName name was set, but name wasn't defined in a node tree", async () => {
+            const router = createRouter({ defaultRouteName: 'incorrectDefaultRouteName', allowNotFound: false });
+            await router.start('/');
+            await expect(async () => {
+                await router.navigate('en.blackhole');
+            }).rejects.toThrow("defaultPage page was set in options, but wasn't defined in routes");
+        });
+
+        it('should work with wildcard(*) in defaultRouteName', async () => {
+            const router = createRouter({ defaultRouteName: '*.index', allowNotFound: false });
+
+            await router.start('/ru');
+            let result = await router.navigate('ru.blackhole');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('ru.index');
+        });
+
+        it("should work with wildcard(*) in defaultRouteName, even if initial route name wasn't found in a tree", async () => {
+            const router = createRouter({ defaultRouteName: '*.index', allowNotFound: false });
+            router.hooks.preNavigate = (name, params) => {
+                if (name === '*.index') {
+                    name = 'ko.index';
+                }
+
+                return [name, params];
+            };
+
+            let result = await router.start('/blackhole');
+            expect(result.type).toBe('success');
+            expect(result.payload.toState?.name).toBe('ko.index');
+        });
     });
 
-    it('transition, reload should work', async () => {
-        const langEnter = jest.fn();
-        const indexEnter = jest.fn();
-        const mainNodes = [
-            {
-                name: 'auctions',
-                path: '/auctions?type',
-                children: [
-                    { name: 'index', path: '/', onEnter: indexEnter },
-                    { name: 'recent', path: '/recent' },
-                    { name: 'search', path: '/search' },
-                ],
-            },
-        ];
+    describe('events', () => {
+        it('start & stop events should work', async () => {
+            const router = createRouter();
+            let start = jest.fn();
+            let stop = jest.fn();
 
-        const router = new Router42([
-            { name: 'en', path: '/', children: mainNodes, onEnter: langEnter },
-            { name: 'ru', path: '/ru', children: mainNodes, onEnter: langEnter },
-            { name: 'ko', path: '/ko', children: mainNodes, onEnter: langEnter },
-        ]);
+            router.addEventListener(events.ROUTER_START, start);
+            router.addEventListener(events.ROUTER_START, stop);
+            await router.start('/');
+            router.stop();
+            expect(start.mock.calls.length).toBe(1);
+            expect(stop.mock.calls.length).toBe(1);
+        });
 
-        await router.start('/auctions');
-        let result = await router.navigate('*.auctions.index', {});
-        expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
-        result = await router.navigate('*.auctions.index', {}, { reload: true });
-        expect(result.payload.toActivate?.length).toBe(3);
-        expect(langEnter.mock.calls.length).toBe(2);
-        expect(indexEnter.mock.calls.length).toBe(2);
-    });
+        it('navigation event should work', async () => {
+            const router = createRouter();
+            let cb = jest.fn();
 
-    it('transition, reload, with nodes that ignore reload calls, should work correctly', async () => {
-        const langEnter = jest.fn();
-        const indexEnter = jest.fn();
-        const mainNodes = [
-            {
-                name: 'auctions',
-                path: '/auctions?type',
-                children: [
-                    { name: 'index', path: '/', onEnter: indexEnter },
-                    { name: 'recent', path: '/recent' },
-                    { name: 'search', path: '/search' },
-                ],
-            },
-        ];
+            router.addEventListener(events.TRANSITION_SUCCESS, cb);
 
-        const router = new Router42([
-            { name: 'en', path: '/', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
-            { name: 'ru', path: '/ru', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
-            { name: 'ko', path: '/ko', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
-        ]);
+            await router.start('/');
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
 
-        await router.start('/auctions');
-        let result = await router.navigate('*.auctions.index', {});
-        expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
-        result = await router.navigate('*.auctions.index', {}, { reload: true });
-        expect(result.payload.toActivate?.length).toBe(2);
-        expect(langEnter.mock.calls.length).toBe(1);
-        expect(indexEnter.mock.calls.length).toBe(2);
-    });
-
-    // TODO
-    it('transition, reload, should work with some intermediate nodes', async () => {});
-
-    it('transition, route not found, no fallbacks are defined', async () => {
-        const router = new Router42([
-            { name: 'index', path: '/' },
-            { name: 'one', path: '/one' },
-            { name: 'two', path: '/two' },
-        ]);
-
-        await router.start('/');
-        let result = await router.navigate('nowhere');
-        expect(result.type).toBe('error');
-        expect(result.payload.error?.code).toBe(errorCodes.ROUTE_NOT_FOUND);
-    });
-
-    it('transition, by path rather than name', async () => {
-        const router = createRouter();
-        await router.start('/');
-
-        let result = await router.navigateByPath('/auctions');
-        expect(result.payload.toState?.name).toBe('en.auctions.index');
-
-        result = await router.navigateByPath('/auctions?type=kuva');
-        expect(result.payload.toState?.name).toBe('en.auctions.index');
-        expect(result.payload.toState?.params).toEqual({ type: 'kuva' });
-
-        result = await router.navigateByPath('/profile/KycKyc/reviews/2');
-        expect(result.payload.toState?.name).toBe('en.profile.reviews.page');
-        expect(result.payload.toState?.params).toEqual({ name: 'KycKyc', page: '2' });
-    });
-
-    it('404, incorrect node name', async () => {
-        const router = createRouter({ notFoundRouteName: 'incorrectNotFound' });
-
-        await router.start('/');
-        await expect(async () => {
-            await router.navigate('en.blackhole');
-        }).rejects.toThrow("404 page was set in options, but wasn't defined in routes");
-    });
-
-    it('404, should work', async () => {
-        const router = createRouter();
-
-        await router.start('/');
-        let result = await router.navigate('en.blackhole');
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('en.notFound');
-    });
-
-    it('404, should inherit lang', async () => {
-        const router = createRouter({ notFoundRouteName: '*.notFound' });
-
-        await router.start('/ru');
-        let result = await router.navigate('ru.blackhole');
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('ru.notFound');
-    });
-
-    it('404, start path is incorrect', async () => {
-        const router = createRouter({ notFoundRouteName: '*.notFound' });
-        router.hooks.preNavigate = (name, params) => {
-            if (name === '*.notFound') {
-                name = 'ko.notFound';
-            }
-
-            return [name, params];
-        };
-
-        let result = await router.start('/blackhole');
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('ko.notFound');
-    });
-
-    it('defaultRouteName, should work', async () => {
-        const router = createRouter({ defaultRouteName: 'en.index', allowNotFound: false });
-        await router.start('/');
-        let result = await router.navigate('en.blackhole');
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('en.index');
-    });
-
-    it('defaultRouteName, incorrect node name', async () => {
-        const router = createRouter({ defaultRouteName: 'incorrectDefaultRouteName', allowNotFound: false });
-        await router.start('/');
-        await expect(async () => {
-            await router.navigate('en.blackhole');
-        }).rejects.toThrow("defaultPage page was set in options, but wasn't defined in routes");
-    });
-
-    it('defaultRouteName, should inherit lang', async () => {
-        const router = createRouter({ defaultRouteName: '*.index', allowNotFound: false });
-
-        await router.start('/ru');
-        let result = await router.navigate('ru.blackhole');
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('ru.index');
-    });
-
-    it('defaultRouteName, start path is incorrect', async () => {
-        const router = createRouter({ defaultRouteName: '*.index', allowNotFound: false });
-        router.hooks.preNavigate = (name, params) => {
-            if (name === '*.index') {
-                name = 'ko.index';
-            }
-
-            return [name, params];
-        };
-
-        let result = await router.start('/blackhole');
-        expect(result.type).toBe('success');
-        expect(result.payload.toState?.name).toBe('ko.index');
-    });
-
-    it('status, route is active, exact path', async () => {
-        const router = createRouter();
-        await router.start('/');
-        await router.navigate('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' });
-        expect(router.isActive('ru.profile.auctions', { name: 'KycKyc' })).toBe(true);
-        expect(router.isActive('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' })).toBe(true);
-        expect(router.isActive('ru.profile.auctions', { name: 'KycKyc' }, true, false)).toBe(false);
-    });
-
-    it('status, route is active, checking some child node', async () => {
-        const router = createRouter();
-        await router.start('/');
-        await router.navigate('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' });
-        expect(router.isActive('ru.profile', { name: 'KycKyc' }, false)).toBe(true);
-        expect(router.isActive('ru.profile', { name: 'KycKyc' })).toBe(false);
-    });
-
-    it('events, start & stop', async () => {
-        const router = createRouter();
-        let start = jest.fn();
-        let stop = jest.fn();
-
-        router.addEventListener(events.ROUTER_START, start);
-        router.addEventListener(events.ROUTER_START, stop);
-        await router.start('/');
-        router.stop();
-        expect(start.mock.calls.length).toBe(1);
-        expect(stop.mock.calls.length).toBe(1);
-    });
-
-    it('events, successful navigation', async () => {
-        const router = createRouter();
-        let cb = jest.fn();
-
-        router.addEventListener(events.TRANSITION_SUCCESS, cb);
-
-        await router.start('/');
-        await router.navigate('en.profile.index', { name: 'KycKyc' });
-
-        expect(cb.mock.calls.length).toBe(2);
-        expect(cb.mock.calls[0][0]['toState']['name']).toBe('en.index');
-        expect(cb.mock.calls[1][0]['toState']['name']).toBe('en.profile.index');
+            expect(cb.mock.calls.length).toBe(2);
+            expect(cb.mock.calls[0][0]['toState']['name']).toBe('en.index');
+            expect(cb.mock.calls[1][0]['toState']['name']).toBe('en.profile.index');
+        });
     });
 });
 
