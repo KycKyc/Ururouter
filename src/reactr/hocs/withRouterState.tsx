@@ -1,13 +1,14 @@
 import React, { forwardRef, Ref } from 'react';
-import { useRouter } from 'react/hooks/useRouter';
 import { Node } from 'router/node';
-import { Router42 } from 'router/router';
+import { Router42, State } from 'router/router';
+import { useRouterState } from '../hooks/useRouterState';
 
 interface InjectedProps {
-    router: Router42<any, Node<any>> | null;
+    state: State<Node<any>> | null;
+    router: Router42<any> | null;
 }
 
-export const withRouter = <Props extends InjectedProps>(Component: React.ComponentType<Props>) => {
+export const withRouterState = <Props extends InjectedProps>(Component: React.ComponentType<Props>) => {
     type ComponentInstance = typeof Component;
     type PureProps = Omit<Props, keyof InjectedProps>;
     type ForwardedProps = PureProps & {
@@ -17,17 +18,17 @@ export const withRouter = <Props extends InjectedProps>(Component: React.Compone
     const displayName = Component.displayName || Component.name || 'Component';
     const ComponentWithNode = (props: ForwardedProps) => {
         const { forwardedRef, ...rest } = props;
-        const router = useRouter();
-        return <Component router={router} ref={forwardedRef} {...(rest as any)} />;
+        const { router, state } = useRouterState();
+        return <Component router={router} state={state} ref={forwardedRef} {...(rest as any)} />;
     };
 
-    ComponentWithNode.displayName = `withRouter(${displayName})`;
+    ComponentWithNode.displayName = `withRouterState(${displayName})`;
 
     function forwardFunction(props: React.PropsWithChildren<PureProps>, ref: React.ForwardedRef<ComponentInstance>) {
         return <ComponentWithNode forwardedRef={ref} {...props} />;
     }
 
-    forwardFunction.displayName = `forwardRef(withRouter(${displayName}))`;
+    forwardFunction.displayName = `forwardRef(withRouterState(${displayName}))`;
 
     return forwardRef(forwardFunction);
 };

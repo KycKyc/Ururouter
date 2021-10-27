@@ -4,7 +4,6 @@ import { IOptions as QueryParamFormats } from 'search-params';
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap } from './helpers';
 import matchChildren from './matchChildren';
 
-export type Callback = (node: Partial<RouteNode> & { name: string }) => void;
 export type TrailingSlashMode = 'default' | 'never' | 'always';
 export type QueryParamsMode = 'default' | 'strict' | 'loose';
 
@@ -43,17 +42,17 @@ export interface RouteNodeOptions {
     sort?: boolean;
 }
 
-export type BasicRouteSignature = {
+export type BasicNodeSignature = {
     name?: string;
     path?: string;
-    children?: BasicRouteSignature[] | RouteNode[] | RouteNode;
+    children?: BasicNodeSignature[] | RouteNode[] | RouteNode;
     options?: RouteNodeOptions;
 };
 
 const trailingSlash = /(.+?)(\/)(\?.*$|$)/gim;
 
 export class RouteNode {
-    ['constructor']: new (signature: BasicRouteSignature, parent?: RouteNode) => this;
+    ['constructor']: new (signature: BasicNodeSignature, parent?: RouteNode) => this;
     name: string;
     treeNames: string[];
     path: string;
@@ -63,7 +62,7 @@ export class RouteNode {
     masterNode: this;
     isRoot: boolean;
 
-    constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: BasicRouteSignature) {
+    constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: BasicNodeSignature) {
         this.name = name;
         this.treeNames = [];
         this.absolute = /^~/.test(path);
@@ -101,7 +100,7 @@ export class RouteNode {
      * @param {boolean} sort: be careful with sort, without sorting router will not work correctly
      * @returns
      */
-    add(route: BasicRouteSignature | BasicRouteSignature[] | this | this[], sort: boolean = true): this {
+    add(route: BasicNodeSignature | BasicNodeSignature[] | this | this[], sort: boolean = true): this {
         if (route === undefined || route === null) {
             return this;
         }
@@ -387,4 +386,4 @@ export class RouteNode {
  * @param init
  * @returns RouteNode
  */
-export const createNode = <Augments>(init: BasicRouteSignature & Augments) => new RouteNode(init) as RouteNode & Augments;
+export const createNode = <Augments>(init: BasicNodeSignature & Augments) => new RouteNode(init) as RouteNode & Augments;

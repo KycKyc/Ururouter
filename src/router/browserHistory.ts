@@ -1,10 +1,10 @@
 import { NavigationOptions, Router42, State } from './router';
 
-class BrowserHistory<Dependencies, ErrorCodes> {
-    router: Router42<Dependencies, ErrorCodes>;
+class BrowserHistory<Dependencies> {
+    router: Router42<Dependencies>;
     removePopStateListener: (() => void) | null;
 
-    constructor(router: Router42<Dependencies, ErrorCodes>) {
+    constructor(router: Router42<Dependencies>) {
         this.router = router;
         this.removePopStateListener = null;
     }
@@ -26,7 +26,7 @@ class BrowserHistory<Dependencies, ErrorCodes> {
         window.history.pushState(state, title, path);
     }
 
-    private getState(): State | null {
+    private getState(): State<any> | null {
         return window.history.state;
     }
 
@@ -43,7 +43,7 @@ class BrowserHistory<Dependencies, ErrorCodes> {
         this.router.navigate(state.name, state.params);
     }
 
-    private updateState(toState: State | null, url: string, replace: boolean) {
+    private updateState(toState: State<any> | null, url: string, replace: boolean) {
         // const trimmedState = toState
         //     ? {
         //           meta: toState.meta,
@@ -72,7 +72,7 @@ class BrowserHistory<Dependencies, ErrorCodes> {
         }
     }
 
-    onTransitionSuccess({ fromState, toState, options }: { fromState: State | null; toState: State; options: NavigationOptions }) {
+    onTransitionSuccess({ fromState, toState, options }: { fromState: State<any> | null; toState: State<any>; options: NavigationOptions }) {
         const historyState = this.getState();
         const hasState = historyState !== null;
 
@@ -95,3 +95,5 @@ const safelyEncodePath = (path: string) => {
         return path;
     }
 };
+
+export { BrowserHistory };

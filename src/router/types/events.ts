@@ -19,5 +19,5 @@ export type EventParamsNode = {
 };
 
 // Callbacks
-export type EventCallback<NodeClass> = (params: EventParamsNavigation<NodeClass>) => void;
+export type EventCallbackNavigation<NodeClass> = (params: EventParamsNavigation<NodeClass>) => void;
 export type EventCallbackNode = (params: EventParamsNode) => void;

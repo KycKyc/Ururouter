@@ -1,6 +1,6 @@
 import React, { forwardRef, Ref } from 'react';
-import { useRouteNode } from 'react/hooks/useRouteNode';
 import { Node } from 'router/node';
+import { useRouteNode } from '../hooks/useRouteNode';
 
 interface InjectedProps {
     node: Node<any> | null | undefined;

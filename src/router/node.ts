@@ -57,34 +57,34 @@ export class Node<Dependencies> extends RouteNode {
     ignoreReloadCall: boolean = false;
     components: { [key: string]: React.ComponentType<any> } = {};
 
-    constructor(signature: NodeInitParams<Dependencies, Node<Dependencies>>) {
-        super(signature);
-        if (signature.defaultParams) {
-            this.defaultParams = signature.defaultParams;
+    constructor(params: NodeInitParams<Dependencies, Node<Dependencies>>) {
+        super(params);
+        if (params.defaultParams) {
+            this.defaultParams = params.defaultParams;
         }
 
-        if (signature.asyncRequests) {
-            this.asyncRequests = signature.asyncRequests;
+        if (params.asyncRequests) {
+            this.asyncRequests = params.asyncRequests;
         }
 
-        if (signature.onEnter) {
-            this.onEnter = signature.onEnter;
+        if (params.onEnter) {
+            this.onEnter = params.onEnter;
         }
 
-        if (signature.encodeParams) {
-            this.encodeParams = signature.encodeParams;
+        if (params.encodeParams) {
+            this.encodeParams = params.encodeParams;
         }
 
-        if (signature.decodeParams) {
-            this.decodeParams = signature.decodeParams;
+        if (params.decodeParams) {
+            this.decodeParams = params.decodeParams;
         }
 
-        if (signature.ignoreReloadCall) {
-            this.ignoreReloadCall = signature.ignoreReloadCall;
+        if (params.ignoreReloadCall) {
+            this.ignoreReloadCall = params.ignoreReloadCall;
         }
 
-        if (signature.components) {
-            this.components = signature.components;
+        if (params.components) {
+            this.components = params.components;
         }
     }
 }

@@ -4,7 +4,7 @@ import { errorCodes, events } from './constants';
 import { NavigationError, RouterError } from './errors';
 import { Node, NodeInitParams, NodeClassSignature } from './node';
 import { DefaultEventNames } from './types';
-import type { EventCallback, EventCallbackNode, EventParamsNavigation, EventParamsNode } from './types/events';
+import type { EventCallbackNavigation, EventCallbackNode, EventParamsNavigation, EventParamsNode } from './types/events';
 
 export interface NavigationOptions {
     /** replace in browserHistory, nothing else is affected ? */
@@ -160,11 +160,11 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         (this.callbacks[eventName] || []).forEach((cb: any) => cb(params));
     }
 
-    removeEventListener(eventName: DefaultEventNames | string, cb: EventCallback<NodeClass> | EventCallbackNode) {
+    removeEventListener(eventName: DefaultEventNames | string, cb: EventCallbackNavigation<NodeClass> | EventCallbackNode) {
         this.callbacks[eventName] = this.callbacks[eventName].filter((_cb: any) => _cb !== cb);
     }
 
-    addEventListener(eventName: DefaultEventNames | string, cb: EventCallback<NodeClass> | EventCallbackNode) {
+    addEventListener(eventName: DefaultEventNames | string, cb: EventCallbackNavigation<NodeClass> | EventCallbackNode) {
         this.callbacks[eventName] = (this.callbacks[eventName] || []).concat(cb);
 
         return () => this.removeEventListener(eventName, cb);
