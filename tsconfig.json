@@ -1,10 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es6",
     "declaration": true,
-    // "declarationDir": "./dist/types",
-    "outDir": "./dist",
-    // "lib": ["dom", "dom.iterable", "esnext"],
+    "outDir": "./dist/esm",
     "esModuleInterop": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,

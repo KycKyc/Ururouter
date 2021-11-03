@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import { react } from '@babel/types';
 import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
 import React, { useMemo } from 'react';
 import { events } from 'router/constants';
