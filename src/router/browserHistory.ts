@@ -1,15 +1,17 @@
 import { NavigationOptions, Router42, State } from './router';
 
+interface BrowserState {}
+
 class BrowserHistory<Dependencies> {
     router: Router42<Dependencies>;
     removePopStateListener: (() => void) | null;
 
-    constructor(router: Router42<Dependencies>) {
+    constructor(router: Router42<Dependencies, any>) {
         this.router = router;
         this.removePopStateListener = null;
     }
 
-    private getLocation() {
+    getLocation() {
         const correctedPath = safelyEncodePath(window.location.pathname);
         return (correctedPath || '/') + window.location.search;
     }
@@ -40,21 +42,23 @@ class BrowserHistory<Dependencies> {
 
         if (this.router.state && this.router.areStatesEqual(state, this.router.state, false)) return;
 
-        this.router.navigate(state.name, state.params);
+        this.router.navigate(state.name, state.params, { popState: true });
     }
 
     private updateState(toState: State<any> | null, url: string, replace: boolean) {
-        // const trimmedState = toState
-        //     ? {
-        //           meta: toState.meta,
-        //           name: toState.name,
-        //           params: toState.params,
-        //           path: toState.path,
-        //       }
-        //     : toState;
+        const trimmedState = toState
+            ? {
+                  meta: toState.meta,
+                  name: toState.name,
+                  params: toState.params,
+                  path: toState.path,
+              }
+            : toState;
+        console.dir(toState, { depth: 5 });
+        console.dir(trimmedState, { depth: 5 });
 
-        if (replace) this.replaceState(toState, '', url);
-        else this.pushState(toState, '', url);
+        if (replace) this.replaceState(trimmedState, '', url);
+        else this.pushState(trimmedState, '', url);
     }
 
     start() {
@@ -84,7 +88,9 @@ class BrowserHistory<Dependencies> {
             url += this.getHash();
         }
 
-        this.updateState(toState, url, replace);
+        if (!options.popState) {
+            this.updateState(toState, url, replace);
+        }
     }
 }
 

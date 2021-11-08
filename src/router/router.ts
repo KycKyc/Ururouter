@@ -4,6 +4,7 @@ import { errorCodes, events } from './constants';
 import { NavigationError, RouterError } from './errors';
 import { Node, NodeInitParams, NodeClassSignature } from './node';
 import { DefaultEventNames } from './types';
+import { BrowserHistory } from './browserHistory';
 import type { EventCallbackNavigation, EventCallbackNode, EventParamsNavigation, EventParamsNode } from './types/events';
 
 export interface NavigationOptions {
@@ -11,7 +12,8 @@ export interface NavigationOptions {
     replace?: boolean;
     /** Will trigger reactivation of asyncRequests and OnEnter Node functions */
     reload?: boolean;
-    skipTransition?: boolean;
+    /** browserHistory thing, to prevent unnecessary update */
+    popState?: boolean;
     force?: boolean;
     [key: string]: any;
 }
@@ -21,7 +23,6 @@ export interface StateMeta {
     params: Params;
     navigation: NavigationOptions;
     redirected: boolean;
-    source?: string;
 }
 
 export interface State<NodeClass> {
@@ -63,6 +64,15 @@ type NavigationResult<NodeClass> = {
     };
 };
 
+type HistoryControllerConstructor<NodeClass> = {
+    new (router: Router42<any, any>): HistoryController<NodeClass>;
+};
+interface HistoryController<NodeClass> {
+    start: () => void;
+    stop: () => void;
+    onTransitionSuccess: EventCallbackNavigation<NodeClass>;
+}
+
 export class Router42<Dependencies, NodeClass extends NodeClassSignature<Dependencies> = Node<Dependencies>> {
     options: Options = {
         autoCleanUp: true,
@@ -98,6 +108,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     started = false;
 
     rootNode: NodeClass;
+    historyController?: HistoryController<NodeClass>;
 
     transitionId = -1;
 
@@ -107,14 +118,21 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     constructor(
         routes: NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
-        dependencies?: Dependencies
+        dependencies?: Dependencies,
+        historyController?: HistoryControllerConstructor<NodeClass>
     );
 
-    constructor(routes: NodeClass | NodeClass[], options?: Partial<Options>, dependencies?: Dependencies);
+    constructor(
+        routes: NodeClass | NodeClass[],
+        options?: Partial<Options>,
+        dependencies?: Dependencies,
+        historyController?: HistoryControllerConstructor<NodeClass>
+    );
     constructor(
         routes: NodeClass | NodeClass[] | NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
-        dependencies?: Dependencies
+        dependencies?: Dependencies,
+        historyController?: HistoryControllerConstructor<NodeClass>
     ) {
         this.options = {
             ...this.options,
@@ -137,6 +155,12 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
             this.rootNode = new Node({ children: routes }) as NodeClass;
         } else {
             this.rootNode = new Node(routes) as NodeClass;
+        }
+
+        if (historyController !== undefined) {
+            this.historyController = new historyController(this);
+        } else {
+            this.historyController = new BrowserHistory(this);
         }
     }
 
@@ -267,6 +291,10 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     start(path: string): Promise<NavigationResult<NodeClass>> {
         if (this.started) {
             throw new RouterError(errorCodes.ROUTER_ALREADY_STARTED, 'already started');
+        }
+        if (this.historyController) {
+            this.addEventListener(events.TRANSITION_SUCCESS, this.historyController.onTransitionSuccess.bind(this.historyController));
+            this.historyController.start();
         }
 
         this.started = true;
