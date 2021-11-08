@@ -1,5 +1,5 @@
 import React, { forwardRef, Ref } from 'react';
-import { Node } from 'router/node';
+import type { Node } from '../../router/node';
 import { useRouteNode } from '../hooks/useRouteNode';
 
 interface InjectedProps {

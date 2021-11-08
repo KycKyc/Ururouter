@@ -1,6 +1,6 @@
 import React, { forwardRef, Ref } from 'react';
-import { Node } from 'router/node';
-import { Router42 } from 'router/router';
+import type { Node } from '../../router/node';
+import type { Router42 } from '../../router/router';
 import { useRouter } from '../hooks/useRouter';
 
 interface InjectedProps {

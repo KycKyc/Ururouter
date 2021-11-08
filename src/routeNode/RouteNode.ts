@@ -1,4 +1,4 @@
-import { Path, URLParamsEncodingType } from 'pathParser';
+import { Path, URLParamsEncodingType } from '../pathParser';
 import { IOptions as QueryParamFormats } from 'search-params';
 
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap } from './helpers';

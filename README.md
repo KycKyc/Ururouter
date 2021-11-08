@@ -15,6 +15,7 @@
 3. Detect duplicate async calls and prevent this, to save possible network request. Deduplicate async calls with the same states.
 4. decode \\ encode params
 5. Route.defaultParams should be `{}` after class initialization, to aviod unnecessary checks ?
+6. do we need meta params ?
 
 ## RouteNode
 

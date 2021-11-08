@@ -1,6 +1,6 @@
 import React, { ReactNode, useContext, useState, useMemo, useLayoutEffect } from 'react';
-import { events } from 'router/constants';
-import type { EventParamsNode } from 'router/types/events';
+import { events } from '../../router/constants';
+import type { EventParamsNode } from '../../router/types/events';
 import { RouterContext } from '../context';
 
 export const useRouteNode = (nodeName: string) => {

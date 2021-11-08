@@ -1,5 +1,5 @@
 import React from 'react';
-import { RouteNode } from 'routeNode';
+import { RouteNode } from '../routeNode';
 import { Params } from 'types/base';
 import { State } from './router';
 

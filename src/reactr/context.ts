@@ -1,6 +1,6 @@
 import React from 'react';
-import { Node } from 'router/node';
-import { Router42, State } from 'router/router';
+import { Node } from '../router/node';
+import { Router42, State } from '../router/router';
 
 export type RouteContextSignature = {
     state: State<Node<any>> | null;
