@@ -20,11 +20,11 @@ class BrowserHistory<Dependencies> {
         return window.location.hash;
     }
 
-    private replaceState(state: any, title: string, path?: string) {
+    private replaceState(state: any, path?: string, title: string = '') {
         window.history.replaceState(state, title, path);
     }
 
-    private pushState(state: any, title: string, path?: string) {
+    private pushState(state: any, path?: string, title: string = '') {
         window.history.pushState(state, title, path);
     }
 
@@ -34,13 +34,11 @@ class BrowserHistory<Dependencies> {
 
     private onPopState(evt: PopStateEvent) {
         const newState = !evt.state?.name;
-        const state = newState
-            ? this.router.matchPath(this.getLocation())
-            : this.router.makeState(evt.state.name, evt.state.params, { ...evt.state.meta }, evt.state.meta.id);
+        const state = newState ? this.router.matchPath(this.getLocation()) : this.router.makeState(evt.state.name, evt.state.params, { ...evt.state.meta });
 
         if (!state) return;
 
-        if (this.router.state && this.router.areStatesEqual(state, this.router.state, false)) return;
+        if (this.router.state && this.router.matchCurrentState(state.name, state.params, true, false)) return;
 
         this.router.navigate(state.name, state.params, { popState: true });
     }
@@ -54,11 +52,10 @@ class BrowserHistory<Dependencies> {
                   path: toState.path,
               }
             : toState;
-        console.dir(toState, { depth: 5 });
-        console.dir(trimmedState, { depth: 5 });
-
-        if (replace) this.replaceState(trimmedState, '', url);
-        else this.pushState(trimmedState, '', url);
+        // console.dir(toState, { depth: 5 });
+        // console.dir(trimmedState, { depth: 5 });
+        if (replace) this.replaceState(trimmedState, url);
+        else this.pushState(trimmedState, url);
     }
 
     start() {
@@ -78,11 +75,13 @@ class BrowserHistory<Dependencies> {
 
     onTransitionSuccess({ fromState, toState, options }: { fromState: State<any> | null; toState: State<any>; options: NavigationOptions }) {
         const historyState = this.getState();
+        console.debug(historyState);
         const hasState = historyState !== null;
 
-        const statesAreEqual = fromState !== null && this.router.areStatesEqual(fromState, toState, false);
-        const replace = options.replace || !hasState || statesAreEqual;
+        // const statesAreEqual = fromState !== null && this.router.areStatesEqual(fromState, toState, false);
+        const replace = options.replace || !hasState; // || statesAreEqual;
         let url = this.router.buildPath(toState.name, toState.params);
+
         // why only on null state ?
         if (fromState === null) {
             url += this.getHash();

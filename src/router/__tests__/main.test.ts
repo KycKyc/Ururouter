@@ -711,6 +711,64 @@ describe('router42', () => {
             expect(cb.mock.calls[1][0]['toState']['name']).toBe('en.profile.index');
         });
     });
+
+    describe('browserHistory', () => {
+        let historyPushSpy: jest.SpyInstance<void, [data: any, unused: string, url?: string | URL | null | undefined]>;
+        let historyReplaceSpy: jest.SpyInstance<void, [data: any, unused: string, url?: string | URL | null | undefined]>;
+        beforeEach(() => {
+            // "Clear" state
+            window.history.pushState(null, '', '/');
+            historyPushSpy = jest.spyOn(history, 'pushState');
+            historyReplaceSpy = jest.spyOn(history, 'replaceState');
+        });
+
+        afterEach(() => {
+            historyPushSpy.mockRestore();
+            historyReplaceSpy.mockRestore();
+        });
+
+        it('start, navigation and stop', async () => {
+            const router = createRouter();
+            await router.start('/');
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
+            //
+            // First history repolace call, router start.
+            //
+            // State
+            expect(historyReplaceSpy.mock.calls[0][0]).toMatchObject({ name: 'en.index', params: {}, path: '/' });
+            // Title
+            expect(historyReplaceSpy.mock.calls[0][1]).toBe('');
+            // Path
+            expect(historyReplaceSpy.mock.calls[0][2]).toBe('/');
+
+            //
+            // First history push call, router navigation.
+            //
+            // State
+            expect(historyPushSpy.mock.calls[0][0]).toMatchObject({ name: 'en.profile.index', params: { name: 'KycKyc' }, path: '/profile/KycKyc/' });
+            // Title
+            expect(historyPushSpy.mock.calls[0][1]).toBe('');
+            // Path
+            expect(historyPushSpy.mock.calls[0][2]).toBe('/profile/KycKyc/');
+
+            router.stop();
+        });
+
+        it('get location', async () => {
+            const originalLocation = { ...window.location };
+            let windowSpy = jest.spyOn(window, 'location', 'get');
+            windowSpy.mockImplementation(() => {
+                return {
+                    ...originalLocation,
+                    pathname: '/profile/kyckyc',
+                };
+            });
+            const router = createRouter();
+            let result = await router.start();
+            expect(result.payload.toState).toMatchObject({ name: 'en.profile.index', path: '/profile/kyckyc/' });
+            windowSpy.mockRestore();
+        });
+    });
 });
 
 const createRouter = (options: Partial<Options> = {}) => {
