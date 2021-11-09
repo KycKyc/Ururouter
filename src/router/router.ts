@@ -5,6 +5,7 @@ import { NavigationError, RouterError } from './errors';
 import { Node, NodeInitParams, NodeClassSignature } from './node';
 import { DefaultEventNames } from './types';
 import { BrowserHistory } from './browserHistory';
+import { generateId } from './helpers';
 import type { EventCallbackNavigation, EventCallbackNode, EventParamsNavigation, EventParamsNode } from './types/events';
 
 export interface NavigationOptions {
@@ -12,14 +13,14 @@ export interface NavigationOptions {
     replace?: boolean;
     /** Will trigger reactivation of asyncRequests and OnEnter Node functions */
     reload?: boolean;
-    /** browserHistory thing, to prevent unnecessary update */
+    /** browserHistory thing, is this navigation call was triggered by popState event ? */
     popState?: boolean;
     force?: boolean;
     [key: string]: any;
 }
 
 export interface StateMeta {
-    id: number;
+    id: string;
     params: Params;
     navigation: NavigationOptions;
     redirected: boolean;
@@ -71,6 +72,7 @@ interface HistoryController<NodeClass> {
     start: () => void;
     stop: () => void;
     onTransitionSuccess: EventCallbackNavigation<NodeClass>;
+    getLocation: () => string;
 }
 
 export class Router42<Dependencies, NodeClass extends NodeClassSignature<Dependencies> = Node<Dependencies>> {
@@ -227,26 +229,14 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     isActive(name: string, params?: Params, exact = true, ignoreQueryParams = true): boolean {
         if (this.state === null) return false;
         name = this.inheritNameFragments(this.state.name, name);
-        if (exact) {
-            return this.areStatesEqual(this.makeState(name, params), this.state, ignoreQueryParams);
-        }
-
-        return this.isEqualOrDescendant(this.makeState(name, params), this.state);
-    }
-
-    isEqualOrDescendant(parentState: State<NodeClass>, childState: State<NodeClass>) {
-        const regex = new RegExp('^' + parentState.name + '($|\\..*$)');
-        if (!regex.test(childState.name)) return false;
-        // If child state name extends parent state name, and all parent state params
-        // are in child state params.
-        return Object.keys(parentState.params).every((p) => parentState.params[p] === childState.params[p]);
+        return this.matchCurrentState(name, params, exact, ignoreQueryParams);
     }
 
     //
     // State management
     //
 
-    makeState(name: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>, forceId?: number): State<NodeClass> {
+    makeState(name: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>): State<NodeClass> {
         let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {};
 
         return {
@@ -258,7 +248,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
             meta: meta
                 ? {
                       ...meta,
-                      id: forceId === undefined ? ++this.stateId : forceId,
+                      id: generateId(),
                   }
                 : undefined,
             path: this.buildPath(name, params),
@@ -266,14 +256,33 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         };
     }
 
-    areStatesEqual(state1: State<NodeClass>, state2: State<NodeClass>, ignoreQueryParams = true) {
-        if (state1.name !== state2.name) return false;
+    /**
+     *
+     * @param name - node name, in case of descendants
+     * @param params
+     * @param exact - true: exact node, false: possibly descendant
+     * e.g. current state is `profile.orders.index`, checking `profile.orders`, if exact is false, result will be true.
+     * @param ignoreQueryParams
+     * @returns
+     */
+    matchCurrentState(name: string, params: Params = {}, exact = true, ignoreQueryParams = true) {
+        if (this.state == null) return false;
 
-        const getUrlParams = (name: string) => this.rootNode.getNodeByName(name)?.parser?.['urlParams'] || [];
+        if (exact) {
+            if (this.state.name !== name) return false;
+        } else {
+            const regex = new RegExp('^' + name + '($|\\..*$)');
+            if (!regex.test(this.state.name)) return false;
+        }
 
-        const state1Params = ignoreQueryParams ? getUrlParams(state1.name) : Object.keys(state1.params);
-        const state2Params = ignoreQueryParams ? getUrlParams(state2.name) : Object.keys(state2.params);
-        return state1Params.length === state2Params.length && state1Params.every((p) => state1.params[p] === state2.params[p]);
+        const getUrlParams = (name: string) =>
+            this.rootNode.getNodesByName(name)?.reduce<string[]>((result, node) => {
+                return result.concat(node?.parser?.urlParams || []);
+            }, []) || [];
+
+        const currentNodeParams = ignoreQueryParams ? getUrlParams(this.state.name) : Object.keys(this.state.params);
+        const targetNodeParams = ignoreQueryParams ? getUrlParams(name) : Object.keys(params);
+        return currentNodeParams.length === targetNodeParams.length && currentNodeParams.every((p) => this.state!.params[p] === params[p]);
     }
 
     buildNodeState(name: string, params: Params = {}) {
@@ -288,24 +297,32 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     //
     // Lifecycle
     //
-    start(path: string): Promise<NavigationResult<NodeClass>> {
+    start(path?: string): Promise<NavigationResult<NodeClass>> {
         if (this.started) {
             throw new RouterError(errorCodes.ROUTER_ALREADY_STARTED, 'already started');
         }
         if (this.historyController) {
             this.addEventListener(events.TRANSITION_SUCCESS, this.historyController.onTransitionSuccess.bind(this.historyController));
             this.historyController.start();
+            if (path === undefined) {
+                path = this.historyController.getLocation();
+            }
         }
 
         this.started = true;
         this.invokeEventListeners(events.ROUTER_START);
 
-        return this.navigateByPath(path);
+        // if path wasn't defined, pass empty string, should throw 404 of default path then
+        return this.navigateByPath(path || '');
     }
 
     stop() {
         if (!this.started) {
             throw new RouterError(errorCodes.ROUTER_NOT_STARTED, 'not started');
+        }
+
+        if (this.historyController) {
+            this.historyController.stop();
         }
 
         this.started = false;
@@ -403,7 +420,8 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
             redirected: false,
         });
 
-        let sameStates = this.state ? this.areStatesEqual(this.state, toState, false) : false;
+        // let sameStates = this.state ? this.areStatesEqual(this.state, toState, false) : false;
+        let sameStates = this.state ? this.matchCurrentState(toState.name, toState.params, true, false) : false;
         if (sameStates && !options.force && !options.reload) {
             // add listner invocation?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.SAME_STATES }) } });
