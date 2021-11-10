@@ -768,6 +768,81 @@ describe('router42', () => {
             expect(result.payload.toState).toMatchObject({ name: 'en.profile.index', path: '/profile/kyckyc/' });
             windowSpy.mockRestore();
         });
+
+        it('popState working', async () => {
+            const router = createRouter();
+            await router.start();
+
+            // double call, so back will lead us to correct entry
+            window.history.pushState({ name: 'en.profile.auctions', params: { name: 'kyckyc' } }, '', '/profile/kyckyc/auctions');
+            window.history.pushState({ name: 'en.profile.auctions', params: { name: 'kyckyc' } }, '', '/profile/kyckyc/auctions');
+
+            window.history.back();
+
+            await new Promise<void>((fulfill) => {
+                setTimeout(() => {
+                    expect(router.state!.name).toBe('en.profile.auctions');
+                    expect(router.state!.params).toEqual({ name: 'kyckyc' });
+                    expect(router.state!.path).toBe('/profile/kyckyc/auctions');
+                    fulfill();
+                }, 200);
+            });
+        });
+
+        it('popState with empty state, should create state from current location', async () => {
+            const router = createRouter();
+            await router.start();
+
+            // double call, so back will lead us to correct entry
+            window.history.pushState(null, '', '/profile/kyckyc/auctions');
+            window.history.pushState(null, '', '/profile/kyckyc/auctions');
+
+            let __mock = jest.spyOn(router.historyController, 'getLocation').mockImplementation(() => '/profile/kyckyc/');
+
+            window.history.back();
+
+            await new Promise<void>((fulfill) => {
+                setTimeout(() => {
+                    expect(router.state!.name).toBe('en.profile.index');
+                    expect(router.state!.params).toEqual({ name: 'kyckyc' });
+                    expect(router.state!.path).toBe('/profile/kyckyc/');
+                    fulfill();
+                }, 200);
+            });
+
+            __mock.mockRestore();
+        });
+
+        it('popState, same states, shold not trigger navigation', async () => {
+            const router = createRouter();
+            await router.start();
+
+            // three calls, to test same state
+            window.history.pushState(null, '', '/profile/kyckyc/auctions');
+            window.history.pushState(null, '', '/profile/kyckyc/auctions');
+            window.history.pushState(null, '', '/profile/kyckyc/auctions');
+
+            let id1: string = 'id1',
+                id2: string = 'id2';
+
+            window.history.back();
+            await new Promise<void>((fulfill) => {
+                setTimeout(() => {
+                    id1 = router.state!.meta!.id;
+                    fulfill();
+                }, 200);
+            });
+
+            window.history.back();
+            await new Promise<void>((fulfill) => {
+                setTimeout(() => {
+                    id2 = router.state!.meta!.id;
+                    fulfill();
+                }, 200);
+            });
+
+            expect(id1 === id2).toBeTruthy();
+        });
     });
 });
 

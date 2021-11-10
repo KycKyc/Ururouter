@@ -110,7 +110,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     started = false;
 
     rootNode: NodeClass;
-    historyController?: HistoryController<NodeClass>;
+    historyController: HistoryController<NodeClass>;
 
     transitionId = -1;
 
@@ -201,29 +201,25 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     //
     buildPath(name: string, params?: Params) {
         name = this.inheritNameFragments(this.state?.name, name);
-        let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {};
+        let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {}; // TODO: replace with reducer for `getNodesByName` and defaultparams for all nodes.
         const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options.pathOptions;
 
         return this.rootNode.buildPath(name, { ...defaultParams, ...params }, { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding });
     }
 
     /**
-     * Do this have any potential use?
+     * Match and convert path into name of a node and params
      * @param path
      * @returns
      */
     matchPath(path: string) {
         const match = this.rootNode.matchPath(path, this.options.pathOptions);
         if (match == null) {
-            return null;
+            return { name: null, params: null };
         }
 
-        const { name, params, meta } = match;
-        return this.makeState(name, params, {
-            params: meta.params,
-            navigation: {},
-            redirected: false,
-        });
+        const { name, params } = match;
+        return { name, params };
     }
 
     isActive(name: string, params?: Params, exact = true, ignoreQueryParams = true): boolean {
@@ -287,7 +283,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
 
     buildNodeState(name: string, params: Params = {}) {
         let _params = {
-            ...(this.rootNode.getNodeByName(name)?.defaultParams || {}),
+            ...(this.rootNode.getNodeByName(name)?.defaultParams || {}), // TODO: replace with reducer for `getNodesByName` and defaultparams for all nodes.
             ...params,
         };
 
@@ -346,8 +342,8 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
      * @returns
      */
     navigateByPath(path: string, params: Params = {}, options: NavigationOptions = {}) {
-        let node = this.rootNode.matchPath(path, this.options.pathOptions);
-        return this.navigate(node?.name || path, { ...(node?.params || {}), ...params }, options);
+        let nodeState = this.rootNode.matchPath(path, this.options.pathOptions);
+        return this.navigate(nodeState?.name || path, { ...(nodeState?.params || {}), ...params }, options);
     }
 
     private inheritNameFragments(basedOn: string | undefined, target: string): string {

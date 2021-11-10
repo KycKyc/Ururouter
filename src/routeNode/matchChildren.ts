@@ -44,7 +44,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
 
             if (match == null) continue;
 
-            // Save our matched node annd params
+            // Save our matched node and params
             currentMatch.nodes.push(node);
             Object.keys(match).forEach((param) => (currentMatch.params[param] = match![param]));
 

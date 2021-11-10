@@ -33,14 +33,19 @@ class BrowserHistory<Dependencies> {
     }
 
     private onPopState(evt: PopStateEvent) {
-        const newState = !evt.state?.name;
-        const state = newState ? this.router.matchPath(this.getLocation()) : this.router.makeState(evt.state.name, evt.state.params, { ...evt.state.meta });
+        let name: string | null, params: Record<string, any> | null;
+        if (evt.state?.name == undefined) {
+            ({ name, params } = this.router.matchPath(this.getLocation()));
+        } else {
+            name = evt.state.name;
+            params = evt.state.params;
+        }
 
-        if (!state) return;
+        // Withdraw if something are missing
+        if (name === null || params === null) return;
+        if (this.router.state && this.router.matchCurrentState(name, params, true, false)) return;
 
-        if (this.router.state && this.router.matchCurrentState(state.name, state.params, true, false)) return;
-
-        this.router.navigate(state.name, state.params, { popState: true });
+        this.router.navigate(name, params, { popState: true });
     }
 
     private updateState(toState: State<any> | null, url: string, replace: boolean) {
@@ -75,7 +80,6 @@ class BrowserHistory<Dependencies> {
 
     onTransitionSuccess({ fromState, toState, options }: { fromState: State<any> | null; toState: State<any>; options: NavigationOptions }) {
         const historyState = this.getState();
-        console.debug(historyState);
         const hasState = historyState !== null;
 
         // const statesAreEqual = fromState !== null && this.router.areStatesEqual(fromState, toState, false);
