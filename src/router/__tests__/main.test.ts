@@ -20,8 +20,8 @@ class BetterRoute<Dependencies> extends RouteNode {
             this.defaultParams = signature.defaultParams;
         }
 
-        if (signature.asyncRequests) {
-            this.asyncRequests = signature.asyncRequests;
+        if (signature.preflight) {
+            this.asyncRequests = signature.preflight;
         }
 
         if (signature.onEnter) {
@@ -133,14 +133,14 @@ describe('router42', () => {
                 new BetterRoute({
                     name: 'index',
                     path: '/',
-                    asyncRequests: ({ node }) => {
+                    preflight: ({ node }) => {
                         checkFn(node.getName());
                     },
                 }),
                 new BetterRoute({
                     name: 'page',
                     path: '/page',
-                    asyncRequests: ({ node }) => {
+                    preflight: ({ node }) => {
                         checkFn(node.getName());
                     },
                 }),
@@ -215,16 +215,16 @@ describe('router42', () => {
             const router = new Router42([
                 {
                     name: 'user',
-                    asyncRequests: () => {
-                        inspector('user(asyncCall)');
+                    preflight: () => {
+                        inspector('user(preflightCall)');
                         return new Promise((resolve) => {
                             setTimeout(() => {
-                                resolve('user(asyncResult)');
+                                resolve('user(preflightResult)');
                             }, 2000);
                         });
                     },
-                    onEnter: async ({ asyncResult }) => {
-                        inspector(asyncResult); //.toBe('user(async)');
+                    onEnter: async ({ results }) => {
+                        inspector(results.preflight); //.toBe('user(async)');
                         await new Promise((resolve) => {
                             setTimeout(() => {
                                 resolve('user(OnEnterResult)');
@@ -238,16 +238,16 @@ describe('router42', () => {
                         {
                             name: 'orders',
                             path: '/orders/:id',
-                            asyncRequests: () => {
-                                inspector('user.orders(asyncCall)');
+                            preflight: () => {
+                                inspector('user.orders(preflightCall)');
                                 return new Promise((resolve) => {
                                     setTimeout(() => {
-                                        resolve('user.orders(asyncResult)');
+                                        resolve('user.orders(preflightResult)');
                                     }, 500);
                                 });
                             },
-                            onEnter: ({ asyncResult, passthrough }) => {
-                                inspector(asyncResult); //.toBe('user.orders(async)');
+                            onEnter: ({ results }) => {
+                                inspector(results.preflight); //.toBe('user.orders(async)');
                             },
                         },
                         { name: 'profile', path: '/:profile?searchOne' },
@@ -255,16 +255,16 @@ describe('router42', () => {
                         {
                             name: 'review',
                             path: '/review/:page',
-                            asyncRequests: () => {
-                                inspector('user.review(asyncCall)');
+                            preflight: () => {
+                                inspector('user.review(preflightCall)');
                                 return new Promise((resolve) => {
                                     setTimeout(() => {
-                                        resolve('user.review(asyncResult)');
+                                        resolve('user.review(preflightResult)');
                                     }, 500);
                                 });
                             },
-                            onEnter: async ({ asyncResult, passthrough }) => {
-                                inspector(asyncResult); //.toBe('user.review(async)');
+                            onEnter: async ({ results }) => {
+                                inspector(results.preflight); //.toBe('user.review(async)');
                                 return await new Promise((resolve) => {
                                     setTimeout(() => {
                                         resolve();
@@ -294,12 +294,12 @@ describe('router42', () => {
             expect(results[0].payload.error?.code).toBe(errorCodes.TRANSITION_CANCELLED);
             expect(results[1].type).toBe('success');
             expect(results[1].payload.toState?.name).toBe('user.review');
-            expect(inspector.mock.calls[0][0]).toBe('user(asyncCall)');
-            expect(inspector.mock.calls[1][0]).toBe('user.orders(asyncCall)');
-            expect(inspector.mock.calls[2][0]).toBe('user(asyncCall)');
-            expect(inspector.mock.calls[3][0]).toBe('user.review(asyncCall)');
-            expect(inspector.mock.calls[4][0]).toBe('user(asyncResult)');
-            expect(inspector.mock.calls[5][0]).toBe('user.review(asyncResult)');
+            expect(inspector.mock.calls[0][0]).toBe('user(preflightCall)');
+            expect(inspector.mock.calls[1][0]).toBe('user.orders(preflightCall)');
+            expect(inspector.mock.calls[2][0]).toBe('user(preflightCall)');
+            expect(inspector.mock.calls[3][0]).toBe('user.review(preflightCall)');
+            expect(inspector.mock.calls[4][0]).toBe('user(preflightResult)');
+            expect(inspector.mock.calls[5][0]).toBe('user.review(preflightResult)');
         });
 
         it('should cancel right after onEnter func after second navigation call (request delay simulation)', async () => {

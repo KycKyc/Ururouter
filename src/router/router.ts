@@ -434,51 +434,44 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         options: NavigationOptions
     ): Promise<NavigationResult<NodeClass>> {
         let canceled = () => id !== this.transitionId;
-        const afterAsync = (result: [{ state?: void | State<NodeClass>; passthrough?: any }, any]) => {
+        const afterAsync = (result: [{} | void, any]) => {
             if (canceled()) {
                 throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, triggerEvent: events.TRANSITION_CANCELED });
             }
 
-            // Useless part, state is always present (?)
-            if (!result[0].state) {
-                result[0].state = toState;
-            }
-
-            return { state: result[0].state, passthrough: result[0].passthrough, asyncResult: result[1] };
+            return { parentNodeEnter: result[0], preflight: result[1] };
         };
 
-        const afterOnEnter = ({ state, passthrough }: { state?: State<NodeClass> | undefined; passthrough?: any } | void = {}) => {
+        const afterOnEnter = (enterResult: {} | void) => {
             if (canceled()) {
                 throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, triggerEvent: events.TRANSITION_CANCELED });
             }
 
-            if (!state) {
-                state = toState;
-            }
-
-            return { state, passthrough };
+            return enterResult;
         };
 
         let { toDeactivate, toActivate, intersection } = this.transitionPath(fromState, toState);
-        let chain: Promise<{ state: State<NodeClass>; passthrough: any }> = Promise.resolve({ state: toState, passthrough: undefined });
+        let onEnterChain: Promise<{} | void> = Promise.resolve();
         for (let node of toActivate) {
-            let asyncFn = null;
-            if (node.asyncRequests) {
-                asyncFn = node.asyncRequests({ node, toState, fromState, dependencies: this.dependencies }) || null;
+            let preflightResult = null;
+            if (node.preflight) {
+                preflightResult = node.preflight({ node, toState, fromState, dependencies: this.dependencies }) || null;
             }
 
             if (node.onEnter) {
                 let ent = node.onEnter;
-                chain = Promise.all([chain, asyncFn])
+                onEnterChain = Promise.all([onEnterChain, preflightResult])
                     .then(afterAsync) // Check is transition was canceled after Async and chain calls, especially matters for the first `chain` which do not have any execution delay
                     .then((result) =>
                         ent({
                             node,
-                            toState: result.state,
+                            toState,
                             fromState,
                             dependencies: this.dependencies,
-                            asyncResult: result.asyncResult,
-                            passthrough: result.passthrough,
+                            results: {
+                                preflight: result.preflight,
+                                parentNodeEnter: result.parentNodeEnter,
+                            },
                         })
                     )
                     .then(afterOnEnter); // Check is transition was canceled after onEnter, usefull if onEnter returns Promise that will take some time to execute.
@@ -486,9 +479,9 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         }
 
         try {
-            let { state } = await chain;
-            state.activeNodes = intersection.concat(toActivate);
-            this.state = toState = state;
+            await onEnterChain;
+            toState.activeNodes = intersection.concat(toActivate);
+            this.state = toState;
             this.invokeEventListeners(events.TRANSITION_SUCCESS, { fromState, toState, nodes: { toDeactivate, toActivate, intersection }, options });
             return { type: 'success', payload: { fromState, toState, toDeactivate, toActivate } };
         } catch (e: any) {
