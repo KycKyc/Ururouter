@@ -200,7 +200,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     // Routes
     //
     buildPath(name: string, params?: Params) {
-        name = this.inheritNameFragments(this.state?.name, name);
+        name = this.wildcardFormat(name);
         let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {}; // TODO: replace with reducer for `getNodesByName` and defaultparams for all nodes.
         const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options.pathOptions;
 
@@ -224,7 +224,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
 
     isActive(name: string, params?: Params, exact = true, ignoreQueryParams = true): boolean {
         if (this.state === null) return false;
-        name = this.inheritNameFragments(this.state.name, name);
+        name = this.wildcardFormat(name);
         return this.matchCurrentState(name, params, exact, ignoreQueryParams);
     }
 
@@ -346,11 +346,14 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         return this.navigate(nodeState?.name || path, { ...(nodeState?.params || {}), ...params }, options);
     }
 
-    private inheritNameFragments(basedOn: string | undefined, target: string): string {
-        if (!basedOn || !target) return target;
-        if (target.indexOf('*') === -1) return target;
-        let base = basedOn.split('.');
-        let result = target.split('.').reduce<string[]>((result, part, index) => {
+    wildcardFormat(name: string): string {
+        if (this.state == null) {
+            console.error("Can't format wildcard name, state isn't defined yet");
+            return name;
+        }
+        if (name.indexOf('*') === -1) return name;
+        let base = this.state.name.split('.');
+        let result = name.split('.').reduce<string[]>((result, part, index) => {
             if (part === '*') {
                 result.push(base[index] || '*');
             } else {
@@ -369,7 +372,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.ROUTER_NOT_STARTED }) } });
         }
 
-        name = this.inheritNameFragments(this.state?.name, name);
+        name = this.wildcardFormat(name);
         if (this.hooks.preNavigate) {
             [name, params] = this.hooks.preNavigate(name, params);
         }

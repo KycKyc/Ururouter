@@ -122,6 +122,80 @@ describe('React', () => {
             expect(spy.mock.calls[0][0]).toBe('@@event/node/reload');
         });
 
+        it('useNode, wildcard', async () => {
+            //
+            // UseRouteNode with wildcarded name
+            //
+            const ProfileWithNode = ({ children }: { children: React.ReactNode }) => {
+                const node = useRouteNode('*.profile');
+                const Component = node!.components.main;
+                return <Component>{children}</Component>;
+            };
+
+            const router = createRouter();
+            const reactApp = createReactApp(router, ProfileWithNode);
+            await router.start('/');
+
+            let { getByText } = render(reactApp);
+
+            await act(async () => {
+                let link = getByText('Profile Index');
+                link.click();
+            });
+
+            getByText('Loading');
+
+            //
+            // Test that wildcard trigger is working
+            //
+            await act(async () => {
+                router.rootNode.getNodeByName('en.profile')!.components.main = ({ children }: { children: React.ReactNode }) => {
+                    return (
+                        <div>
+                            <h1>Dynamic Profile page</h1>
+                            {children}
+                        </div>
+                    );
+                };
+
+                router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: '*.profile' });
+            });
+
+            getByText('Dynamic Profile page');
+            getByText('Page content of Profile index');
+
+            await act(async () => {
+                let link = getByText('Index');
+                link.click();
+            });
+
+            getByText('Page content of index');
+
+            await act(async () => {
+                let link = getByText('Profile Index');
+                link.click();
+            });
+
+            //
+            // Test that NON-wildcard trigger is working
+            //
+            await act(async () => {
+                router.rootNode.getNodeByName('en.profile')!.components.main = ({ children }: { children: React.ReactNode }) => {
+                    return (
+                        <div>
+                            <h1>Dynamic Profile page, en</h1>
+                            {children}
+                        </div>
+                    );
+                };
+
+                router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: 'en.profile' });
+            });
+
+            getByText('Dynamic Profile page, en');
+            getByText('Page content of Profile index');
+        });
+
         it('useRouter', async () => {
             const renderCounter = jest.fn();
 
