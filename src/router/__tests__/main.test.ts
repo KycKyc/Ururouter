@@ -2,71 +2,25 @@ import { RouteNode } from 'routeNode';
 import { Params } from 'types/base';
 import { errorCodes, events } from '../constants';
 import { Redirect } from '../errors';
-import { Node, NodeInitParams, AsyncFn, EnterFn } from '../node';
+import { Node, NodeInitParams, PreflightFn, EnterFn } from '../node';
 import { Router42, Options } from '../router';
 
-class BetterRoute<Dependencies> extends RouteNode {
-    additionalParam: boolean = true;
-    asyncRequests?: AsyncFn<Dependencies, BetterRoute<Dependencies>>;
-    onEnter?: EnterFn<Dependencies, BetterRoute<Dependencies>>;
-    encodeParams?(stateParams: Params): Params;
-    decodeParams?(pathParams: Params): Params;
-    defaultParams?: Params;
-    ignoreReloadCall: boolean = false;
-
-    constructor(signature: NodeInitParams<Dependencies, BetterRoute<Dependencies>>) {
-        super(signature);
-        if (signature.defaultParams) {
-            this.defaultParams = signature.defaultParams;
-        }
-
-        if (signature.preflight) {
-            this.asyncRequests = signature.preflight;
-        }
-
-        if (signature.onEnter) {
-            this.onEnter = signature.onEnter;
-        }
-
-        if (signature.encodeParams) {
-            this.encodeParams = signature.encodeParams;
-        }
-
-        if (signature.decodeParams) {
-            this.decodeParams = signature.decodeParams;
-        }
-
-        if (signature.ignoreReloadCall) {
-            this.ignoreReloadCall = signature.ignoreReloadCall;
-        }
-    }
-
-    getName() {
-        return this.name;
-    }
-}
-
-type EvenBetterParams<Dependencies, NodeClass> = {
-    something: string;
-    children?: EvenBetterParams<Dependencies, NodeClass>[] | EvenBetter<Dependencies>[] | EvenBetter<Dependencies>;
-    name?: string;
-    path?: string;
-    asyncRequests?: AsyncFn<Dependencies, NodeClass>;
-    onEnter?: EnterFn<Dependencies, NodeClass>;
-    forwardTo?: string;
-    encodeParams?(stateParams: Params): Params;
-    decodeParams?(pathParams: Params): Params;
-    defaultParams?: Params;
-    ignoreReloadCall?: boolean;
+type EvenBetterInit<Dependencies, NodeClass> = Omit<NodeInitParams<Dependencies, NodeClass>, 'children'> & {
+    additionalSomething: string;
+    children?: EvenBetterInit<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
 };
 
-class EvenBetter<Dependencies> extends Node<Dependencies> {
-    constructor(signature: EvenBetterParams<Dependencies, EvenBetter<Dependencies>>) {
-        super(signature as any);
+class EvenBetter<Dependencies = any> extends Node<Dependencies> {
+    additionalSomething?: string;
+    constructor(signature: EvenBetterInit<Dependencies, EvenBetter<Dependencies>>) {
+        super(signature);
+        if (signature.additionalSomething) {
+            this.additionalSomething = signature.additionalSomething;
+        }
     }
 
-    getName() {
-        return this.name;
+    getAdditional() {
+        return this.additionalSomething;
     }
 }
 
@@ -114,55 +68,36 @@ describe('router42', () => {
     });
 
     it('should work with superset of Route node class', async () => {
-        let checkFn = jest.fn();
-        // const r = new EvenBetter({
-        //     name: '',
-        //     something: 'kek',
-        //     children: [
-        //         {
-        //             name: '',
-        //             something: '',
-        //         },
-        //     ],
-        // });
-
-        const routes = new BetterRoute({
+        let checkAugment = jest.fn();
+        const routes = new EvenBetter({
             name: '',
-            path: '',
+            additionalSomething: 'kek',
             children: [
-                new BetterRoute({
-                    name: 'index',
-                    path: '/',
-                    preflight: ({ node }) => {
-                        checkFn(node.getName());
+                {
+                    name: 'first',
+                    path: '/first',
+                    additionalSomething: 'first',
+                    onEnter: ({ node }) => {
+                        checkAugment(node.additionalSomething);
                     },
-                }),
-                new BetterRoute({
-                    name: 'page',
-                    path: '/page',
-                    preflight: ({ node }) => {
-                        checkFn(node.getName());
+                },
+                {
+                    name: 'second',
+                    path: '/second',
+                    additionalSomething: 'second',
+                    onEnter: ({ node }) => {
+                        checkAugment(node.additionalSomething);
                     },
-                }),
+                },
             ],
         });
 
-        //
-        // Uncomment if you want to check that node is having correct type
-        //
-        // const routes2 = new BetterRoute({
-        //     name: '',
-        //     path: '',
-        //     asyncRequests: ({ node }) => {},
-        //     children: [{ name: 'index', path: '/', asyncRequests: ({ node }) => {} }],
-        // });
-
         const router = new Router42(routes);
-        await router.start('/');
-        await router.navigate('page');
-        expect(checkFn.mock.calls.length).toBe(2);
-        expect(checkFn.mock.calls[0][0]).toBe('index');
-        expect(checkFn.mock.calls[1][0]).toBe('page');
+        await router.start('/first');
+        await router.navigate('second');
+        expect(checkAugment.mock.calls.length).toBe(2);
+        expect(checkAugment.mock.calls[0][0]).toBe('first');
+        expect(checkAugment.mock.calls[1][0]).toBe('second');
     });
 
     describe('transition\\navigation', () => {
@@ -316,7 +251,7 @@ describe('router42', () => {
                             {
                                 name: 'top',
                                 path: '/top/:id',
-                                onEnter: async ({}) => {
+                                onEnter: async ({ dependencies, node }) => {
                                     return await new Promise((resolve) => {
                                         setTimeout(() => {
                                             resolve();
@@ -718,7 +653,9 @@ describe('router42', () => {
         beforeEach(() => {
             // "Clear" state
             window.history.pushState(null, '', '/');
+            // eslint-disable-next-line no-restricted-globals
             historyPushSpy = jest.spyOn(history, 'pushState');
+            // eslint-disable-next-line no-restricted-globals
             historyReplaceSpy = jest.spyOn(history, 'replaceState');
         });
 
@@ -763,6 +700,7 @@ describe('router42', () => {
                     pathname: '/profile/kyckyc',
                 };
             });
+
             const router = createRouter();
             let result = await router.start();
             expect(result.payload.toState).toMatchObject({ name: 'en.profile.index', path: '/profile/kyckyc/' });

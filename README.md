@@ -17,6 +17,7 @@
 5. Route.defaultParams should be `{}` after class initialization, to aviod unnecessary checks ?
 6. do we need meta params ?
 7. hash in the path, add new `hash` param to navigation call?
+8. console warnings\errors for 404 and other navigation events ?
 
 ## RouteNode
 

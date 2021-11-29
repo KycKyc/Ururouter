@@ -57,6 +57,7 @@ class BrowserHistory<Dependencies> {
                   path: toState.path,
               }
             : toState;
+
         // console.dir(toState, { depth: 5 });
         // console.dir(trimmedState, { depth: 5 });
         if (replace) this.replaceState(trimmedState, url);

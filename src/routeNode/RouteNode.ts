@@ -1,5 +1,5 @@
-import { Path, URLParamsEncodingType } from '../pathParser';
 import { IOptions as QueryParamFormats } from 'search-params';
+import { Path, URLParamsEncodingType } from '../pathParser';
 
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap } from './helpers';
 import matchChildren from './matchChildren';
@@ -141,7 +141,7 @@ export class RouteNode {
 
         if (node.isRoot) {
             if (node.nameMap.size === 0) {
-                throw new Error('RouteNode.add() expects routes to have a name and a path, or at least have some children to steal');
+                throw new Error("RouteNode.add() expects routes to have a name(not '') and a path, or at least have some children to steal");
             }
 
             node.nameMap.forEach((node) => {

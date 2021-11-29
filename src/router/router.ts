@@ -1,12 +1,12 @@
 import type { RouteNodeState } from 'routeNode';
 import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params } from 'types/base';
+import { BrowserHistory } from './browserHistory';
 import { errorCodes, events } from './constants';
 import { NavigationError, RouterError } from './errors';
-import { Node, NodeInitParams, NodeClassSignature } from './node';
-import { DefaultEventNames } from './types';
-import { BrowserHistory } from './browserHistory';
 import { generateId } from './helpers';
-import type { EventCallbackNavigation, EventCallbackNode, EventParamsNavigation, EventParamsNode } from './types/events';
+import { Node, NodeInitParams } from './node';
+import { DefaultEventNames } from './types';
+import type { EventCallbackNavigation, EventParamsNavigation } from './types/events';
 
 export interface NavigationOptions {
     /** replace in browserHistory, nothing else is affected ? */
@@ -75,7 +75,7 @@ interface HistoryController<NodeClass> {
     getLocation: () => string;
 }
 
-export class Router42<Dependencies, NodeClass extends NodeClassSignature<Dependencies> = Node<Dependencies>> {
+export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<Dependencies>> {
     options: Options = {
         autoCleanUp: true,
         allowNotFound: false,
@@ -130,6 +130,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         dependencies?: Dependencies,
         historyController?: HistoryControllerConstructor<NodeClass>
     );
+
     constructor(
         routes: NodeClass | NodeClass[] | NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
@@ -182,15 +183,15 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     // Events
     //
 
-    invokeEventListeners(eventName: DefaultEventNames | string, params?: EventParamsNavigation<NodeClass> | EventParamsNode) {
+    invokeEventListeners(eventName: DefaultEventNames | string, params?: EventParamsNavigation<NodeClass>) {
         (this.callbacks[eventName] || []).forEach((cb: any) => cb(params));
     }
 
-    removeEventListener(eventName: DefaultEventNames | string, cb: EventCallbackNavigation<NodeClass> | EventCallbackNode) {
+    removeEventListener(eventName: DefaultEventNames | string, cb: EventCallbackNavigation<NodeClass>) {
         this.callbacks[eventName] = this.callbacks[eventName].filter((_cb: any) => _cb !== cb);
     }
 
-    addEventListener(eventName: DefaultEventNames | string, cb: EventCallbackNavigation<NodeClass> | EventCallbackNode) {
+    addEventListener(eventName: DefaultEventNames | string, cb: EventCallbackNavigation<NodeClass>) {
         this.callbacks[eventName] = (this.callbacks[eventName] || []).concat(cb);
 
         return () => this.removeEventListener(eventName, cb);
@@ -297,6 +298,7 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
         if (this.started) {
             throw new RouterError(errorCodes.ROUTER_ALREADY_STARTED, 'already started');
         }
+
         if (this.historyController) {
             this.addEventListener(events.TRANSITION_SUCCESS, this.historyController.onTransitionSuccess.bind(this.historyController));
             this.historyController.start();
@@ -347,11 +349,13 @@ export class Router42<Dependencies, NodeClass extends NodeClassSignature<Depende
     }
 
     wildcardFormat(name: string): string {
+        if (name.indexOf('*') === -1) return name;
+
         if (this.state == null) {
-            console.error("Can't format wildcard name, state isn't defined yet");
+            console.warn("Can't format wildcard name, state isn't defined yet");
             return name;
         }
-        if (name.indexOf('*') === -1) return name;
+
         let base = this.state.name.split('.');
         let result = name.split('.').reduce<string[]>((result, part, index) => {
             if (part === '*') {

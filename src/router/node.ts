@@ -1,9 +1,12 @@
 import React from 'react';
-import { RouteNode } from '../routeNode';
 import { Params } from 'types/base';
+import { RouteNode } from '../routeNode';
+import { nodeEvents } from './constants';
 import { State } from './router';
+import { NodeDefaultEventNames } from './types';
+import { NodeEventParams, NodeEventCallback } from './types/events';
 
-export type AsyncFn<Dependencies, NodeClass> = (params: {
+export type PreflightFn<Dependencies, NodeClass> = (params: {
     node: NodeClass;
     toState: State<NodeClass>;
     fromState: State<NodeClass> | null;
@@ -19,27 +22,29 @@ export type EnterFn<Dependencies, NodeClass> = (params: {
         preflight: {} | void;
         parentNodeEnter: {} | void;
     };
-    // preflightResult: {} | undefined;
-    // passthrough: {} | undefined;
 }) => Promise<{} | void> | {} | void;
 
-export type NodeClassSignature<Dependencies> = RouteNode & {
-    ['constructor']: new (params: NodeInitParams<Dependencies, any>) => void;
-    preflight?: AsyncFn<Dependencies, any>;
-    onEnter?: EnterFn<Dependencies, any>;
-    encodeParams?(stateParams: Params): Params;
-    decodeParams?(pathParams: Params): Params;
-    defaultParams?: Params;
-    /** Suppress asyncRequests and on onEnter functions, even if navigationOptions.reload is true */
-    ignoreReloadCall: boolean;
-    /** React components */
-    components?: { [key: string]: React.ComponentType<any> };
-};
+// export type NodeClassSignature<Dependencies> = RouteNode & {
+//     ['constructor']: new (params: NodeInitParams<Dependencies, any>) => void;
+//     preflight?: PreflightFn<Dependencies, any>;
+//     onEnter?: EnterFn<Dependencies, any>;
+//     encodeParams?(stateParams: Params): Params;
+//     decodeParams?(pathParams: Params): Params;
+//     defaultParams: Params;
+//     /** Suppress asyncRequests and on onEnter functions, even if navigationOptions.reload is true */
+//     ignoreReloadCall: boolean;
+//     /** React components */
+//     components: { [key: string]: React.ComponentType<any> };
+//     callbacks: { [key: string]: Function[] };
+//     invokeEventListeners: (eventName: NodeDefaultEventNames | string, params?: NodeEventParams) => void;
+//     removeEventListener: (eventName: NodeDefaultEventNames | string, cb: NodeEventCallback) => void;
+//     addEventListener: (eventName: NodeDefaultEventNames | string, cb: NodeEventCallback) => () => void;
+// };
 
-export type NodeInitParams<Dependencies = any, NodeClass = Node<Dependencies>> = {
+export type NodeInitParams<Dependencies = any, NodeClass = any> = {
     name?: string;
     path?: string;
-    preflight?: AsyncFn<Dependencies, NodeClass>;
+    preflight?: PreflightFn<Dependencies, NodeClass>;
     onEnter?: EnterFn<Dependencies, NodeClass>;
     forwardTo?: string;
     children?: NodeInitParams<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
@@ -53,15 +58,16 @@ export type NodeInitParams<Dependencies = any, NodeClass = Node<Dependencies>> =
 };
 
 export class Node<Dependencies> extends RouteNode {
-    preflight?: AsyncFn<Dependencies, Node<Dependencies>>;
-    onEnter?: EnterFn<Dependencies, Node<Dependencies>>;
+    preflight?: PreflightFn<Dependencies, this>;
+    onEnter?: EnterFn<Dependencies, this>;
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams: Params = {};
     ignoreReloadCall: boolean = false;
     components: { [key: string]: React.ComponentType<any> } = {};
+    callbacks: { [key: string]: Function[] } = {};
 
-    constructor(params: NodeInitParams<Dependencies, Node<Dependencies>>) {
+    constructor(params: NodeInitParams<Dependencies>) {
         super(params);
         if (params.defaultParams) {
             this.defaultParams = params.defaultParams;
@@ -90,5 +96,24 @@ export class Node<Dependencies> extends RouteNode {
         if (params.components) {
             this.components = params.components;
         }
+    }
+
+    invokeEventListeners(eventName: NodeDefaultEventNames | string, params?: NodeEventParams) {
+        (this.callbacks[eventName] || []).forEach((cb: any) => cb(params));
+    }
+
+    removeEventListener(eventName: NodeDefaultEventNames | string, cb: NodeEventCallback) {
+        this.callbacks[eventName] = this.callbacks[eventName].filter((_cb: any) => _cb !== cb);
+    }
+
+    addEventListener(eventName: NodeDefaultEventNames | string, cb: NodeEventCallback) {
+        this.callbacks[eventName] = (this.callbacks[eventName] || []).concat(cb);
+
+        return () => this.removeEventListener(eventName, cb);
+    }
+
+    updateComponent(name: string, component: React.ComponentType<any>) {
+        this.components[name] = component;
+        this.invokeEventListeners(nodeEvents.ROUTER_RELOAD_NODE);
     }
 }

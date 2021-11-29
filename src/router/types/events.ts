@@ -14,10 +14,12 @@ export type EventParamsNavigation<NodeClass> = {
     error?: any;
 };
 
-export type EventParamsNode = {
-    name: string;
+// We do not use it anywhere right now.
+// reserved for future use, probably
+export type NodeEventParams = {
+    [key: string]: any;
 };
 
 // Callbacks
 export type EventCallbackNavigation<NodeClass> = (params: EventParamsNavigation<NodeClass>) => void;
-export type EventCallbackNode = (params: EventParamsNode) => void;
+export type NodeEventCallback = (params?: NodeEventParams) => void;

@@ -17,5 +17,8 @@ export const events = {
     TRANSITION_CANCELED: '@@event/transition/canceled',
     TRANSITION_REDIRECTED: '@@event/transition/redirected',
     TRANSITION_UNKNOWN_ERROR: '@@event/transition/unknown_error',
+} as const;
+
+export const nodeEvents = {
     ROUTER_RELOAD_NODE: '@@event/node/reload',
 } as const;

@@ -84,8 +84,9 @@ describe('React', () => {
             };
 
             const router = createRouter();
+            const targetNode = router.rootNode.getNodeByName('en.profile')!;
             const reactApp = createReactApp(router, ProfileWithNode);
-            const spy = jest.spyOn(router, 'removeEventListener');
+            const spy = jest.spyOn(targetNode, 'removeEventListener');
             await router.start('/');
 
             let { getByText } = render(reactApp);
@@ -98,7 +99,7 @@ describe('React', () => {
             getByText('Loading');
 
             await act(async () => {
-                router.rootNode.getNodeByName('en.profile')!.components.main = ({ children }: { children: React.ReactNode }) => {
+                const profileComponent = ({ children }: { children: React.ReactNode }) => {
                     return (
                         <div>
                             <h1>Profile</h1>
@@ -107,7 +108,7 @@ describe('React', () => {
                     );
                 };
 
-                router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: 'en.profile' });
+                router.rootNode.getNodeByName('en.profile')!.updateComponent('main', profileComponent);
             });
 
             getByText('Page content of Profile index');
@@ -149,7 +150,7 @@ describe('React', () => {
             // Test that wildcard trigger is working
             //
             await act(async () => {
-                router.rootNode.getNodeByName('en.profile')!.components.main = ({ children }: { children: React.ReactNode }) => {
+                let profileComponent = ({ children }: { children: React.ReactNode }) => {
                     return (
                         <div>
                             <h1>Dynamic Profile page</h1>
@@ -158,7 +159,7 @@ describe('React', () => {
                     );
                 };
 
-                router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: '*.profile' });
+                router.rootNode.getNodeByName('en.profile')!.updateComponent('main', profileComponent);
             });
 
             getByText('Dynamic Profile page');
@@ -180,7 +181,7 @@ describe('React', () => {
             // Test that NON-wildcard trigger is working
             //
             await act(async () => {
-                router.rootNode.getNodeByName('en.profile')!.components.main = ({ children }: { children: React.ReactNode }) => {
+                const profilecomponent = ({ children }: { children: React.ReactNode }) => {
                     return (
                         <div>
                             <h1>Dynamic Profile page, en</h1>
@@ -189,7 +190,7 @@ describe('React', () => {
                     );
                 };
 
-                router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: 'en.profile' });
+                router.rootNode.getNodeByName('en.profile')!.updateComponent('main', profilecomponent);
             });
 
             getByText('Dynamic Profile page, en');
@@ -415,8 +416,7 @@ describe('React', () => {
             getByText('Loading');
 
             await act(async () => {
-                router.rootNode.getNodeByName('en.profile')!.components.main = () => <div>Component</div>;
-                router.invokeEventListeners(events.ROUTER_RELOAD_NODE, { name: 'en.profile' });
+                router.rootNode.getNodeByName('en.profile')!.updateComponent('main', () => <div>Component</div>);
             });
 
             getByText('Component');
