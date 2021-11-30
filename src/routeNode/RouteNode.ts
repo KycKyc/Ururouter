@@ -1,7 +1,8 @@
 import { IOptions as QueryParamFormats } from 'search-params';
 import { Path, URLParamsEncodingType } from '../pathParser';
 
-import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap } from './helpers';
+import type { Params } from '../types/base';
+import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap, getDefaultParamsFromNodes } from './helpers';
 import matchChildren from './matchChildren';
 
 export type TrailingSlashMode = 'default' | 'never' | 'always';
@@ -47,6 +48,7 @@ export type BasicNodeSignature = {
     path?: string;
     children?: BasicNodeSignature[] | RouteNode[] | RouteNode;
     options?: RouteNodeOptions;
+    defaultParams?: Params;
 };
 
 const trailingSlash = /(.+?)(\/)(\?.*$|$)/gim;
@@ -61,6 +63,7 @@ export class RouteNode {
     nameMap: Map<string, this>;
     masterNode: this;
     isRoot: boolean;
+    defaultParams: Params = {};
 
     constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: BasicNodeSignature) {
         this.name = name;
@@ -283,10 +286,26 @@ export class RouteNode {
         }
     }
 
+    /**
+     * Get syntetic path\\template for given route name
+     * @param routeName route name, e.g `path.to.something`
+     * @returns {string} path, e.g `/blogs/:blogId/posts/:postId`
+     */
     getPath(routeName: string): string | null {
         const nodesByName = this.getNodesByName(routeName);
 
         return nodesByName ? getPathFromNodes(nodesByName) : null;
+    }
+
+    /**
+     * Get defaultParams for given route name, all defaultParams from node tree (grandparent -> parent -> child)
+     * @param routeName route name, e.g `path.to.something`
+     * @returns {Object} params, e.g. `{param: 1, param: 2}`
+     */
+    getDefaultParams(routeName: string): Record<string, any> {
+        const nodesByName = this.getNodesByName(routeName);
+
+        return nodesByName ? getDefaultParamsFromNodes(nodesByName) : {};
     }
 
     sortChildren() {

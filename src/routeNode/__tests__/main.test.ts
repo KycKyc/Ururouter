@@ -867,6 +867,46 @@ describe('RouteNode', function () {
         expect(koNode === enNode).toBeTruthy();
     });
 
+    describe('defaultParams', () => {
+        it('should work', () => {
+            const nodes = new RouteNode({
+                children: [
+                    {
+                        name: 'item',
+                        path: '/item/:item',
+                        defaultParams: { item: 'soma' },
+                        children: [
+                            { name: 'index', path: '/' },
+                            { name: 'stats', path: '/statistics/:range', defaultParams: { range: 'day' } },
+                        ],
+                    },
+                ],
+            });
+
+            const defaultParams = nodes.getDefaultParams('item.stats');
+            expect(defaultParams).toEqual({ item: 'soma', range: 'day' });
+        });
+
+        it('child should overwrite parent defaults', () => {
+            const nodes = new RouteNode({
+                children: [
+                    {
+                        name: 'item',
+                        path: '/item/:item',
+                        defaultParams: { item: 'soma' },
+                        children: [
+                            { name: 'index', path: '/' },
+                            { name: 'stats', path: '/statistics/:range', defaultParams: { range: 'day', item: 'bronko' } },
+                        ],
+                    },
+                ],
+            });
+
+            const defaultParams = nodes.getDefaultParams('item.stats');
+            expect(defaultParams).toEqual({ item: 'bronko', range: 'day' });
+        });
+    });
+
     describe('uri encoding', () => {
         const routeNode = new RouteNode({
             children: [

@@ -202,7 +202,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     //
     buildPath(name: string, params?: Params) {
         name = this.wildcardFormat(name);
-        let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {}; // TODO: replace with reducer for `getNodesByName` and defaultparams for all nodes.
+        let defaultParams = this.rootNode.getDefaultParams(name);
         const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options.pathOptions;
 
         return this.rootNode.buildPath(name, { ...defaultParams, ...params }, { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding });
@@ -234,7 +234,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     //
 
     makeState(name: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>): State<NodeClass> {
-        let defaultParams = this.rootNode.getNodeByName(name)?.defaultParams || {};
+        let defaultParams = this.rootNode.getDefaultParams(name);
 
         return {
             name,
@@ -284,7 +284,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
 
     buildNodeState(name: string, params: Params = {}) {
         let _params = {
-            ...(this.rootNode.getNodeByName(name)?.defaultParams || {}), // TODO: replace with reducer for `getNodesByName` and defaultparams for all nodes.
+            ...this.rootNode.getDefaultParams(name),
             ...params,
         };
 
@@ -376,10 +376,11 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.ROUTER_NOT_STARTED }) } });
         }
 
-        name = this.wildcardFormat(name);
         if (this.hooks.preNavigate) {
             [name, params] = this.hooks.preNavigate(name, params);
         }
+
+        name = this.wildcardFormat(name);
 
         let nodeState: RouteNodeState | null = null;
 

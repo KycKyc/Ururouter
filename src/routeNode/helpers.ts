@@ -1,6 +1,8 @@
 import { build } from 'search-params';
 import { BuildOptions, MatchResponse, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
 
+export const getPathFromNodes = (nodes: RouteNode[]): string | null => (nodes ? nodes.map((node) => node.path).join('') : null);
+
 export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
     let accName = '';
     let meta = {
@@ -12,18 +14,15 @@ export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
             return params;
         }
 
-        //TODO: we already checking presense of parser, do we need fallbacks ?
-        const urlParams =
-            node.parser?.urlParams.reduce<Record<string, any>>((params, p) => {
-                params[p] = 'url';
-                return params;
-            }, {}) ?? {};
+        const urlParams = node.parser.urlParams.reduce<Record<string, any>>((params, p) => {
+            params[p] = 'url';
+            return params;
+        }, {});
 
-        const allParams =
-            node.parser?.queryParams.reduce<Record<string, any>>((params, p) => {
-                params[p] = 'query';
-                return params;
-            }, urlParams) ?? {};
+        const allParams = node.parser.queryParams.reduce<Record<string, any>>((params, p) => {
+            params[p] = 'query';
+            return params;
+        }, urlParams);
 
         if (node.name !== undefined) {
             accName = accName ? accName + '.' + node.name : node.name;
@@ -34,6 +33,19 @@ export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
     }, {});
 
     return meta;
+};
+
+export const getDefaultParamsFromNodes = (nodes: RouteNode[]) => {
+    return nodes.reduce<Record<string, any>>((params, node) => {
+        for (let paramName in node.defaultParams) {
+            // if (params.hasOwnProperty(paramName) && (paramName in (node.parser?.queryParams ?? {}) || paramName in (node.parser?.urlParams ?? {}))) {
+            //     console.warn(`Duplicate default param was found: '${paramName}', please check your nodes, param will be overwritten!`);
+            // }
+            params[paramName] = node.defaultParams[paramName];
+        }
+
+        return params;
+    }, {});
 };
 
 export const buildStateFromMatch = (match: MatchResponse): RouteNodeState | null => {
@@ -113,8 +125,6 @@ export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, an
 
     return finalPath + (searchPart ? '?' + searchPart : '');
 };
-
-export const getPathFromNodes = (nodes: RouteNode[]): string | null => (nodes ? nodes.map((node) => node.path).join('') : null);
 
 export const sortedNameMap = (originalMap: Map<string, RouteNode>): Map<string, RouteNode> => {
     let sortedArray = [];
