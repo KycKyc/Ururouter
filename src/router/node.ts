@@ -6,12 +6,17 @@ import { State } from './router';
 import { NodeDefaultEventNames } from './types';
 import { NodeEventParams, NodeEventCallback } from './types/events';
 
+export type PrefligthResult<Result = any> = Result | void;
+export type OnEnterResult<Result = any> = Result | void;
+export type PrefligthReturn<Result = any> = Promise<PrefligthResult<Result>> | PrefligthResult<Result>;
+export type OnEnterReturn<Result = any> = Promise<OnEnterResult<Result>> | OnEnterResult<Result>;
+
 export type PreflightFn<Dependencies, NodeClass> = (params: {
     node: NodeClass;
     toState: State<NodeClass>;
     fromState: State<NodeClass> | null;
     dependencies?: Dependencies;
-}) => Promise<{} | void> | {} | void;
+}) => PrefligthReturn;
 
 export type EnterFn<Dependencies, NodeClass> = (params: {
     node: NodeClass;
@@ -19,29 +24,12 @@ export type EnterFn<Dependencies, NodeClass> = (params: {
     fromState: State<NodeClass> | null;
     dependencies?: Dependencies;
     results: {
-        preflight: {} | void;
-        parentNodeEnter: {} | void;
+        preflight: PrefligthResult;
+        parentNodeEnter: OnEnterResult;
     };
-}) => Promise<{} | void> | {} | void;
+}) => OnEnterReturn;
 
-// export type NodeClassSignature<Dependencies> = RouteNode & {
-//     ['constructor']: new (params: NodeInitParams<Dependencies, any>) => void;
-//     preflight?: PreflightFn<Dependencies, any>;
-//     onEnter?: EnterFn<Dependencies, any>;
-//     encodeParams?(stateParams: Params): Params;
-//     decodeParams?(pathParams: Params): Params;
-//     defaultParams: Params;
-//     /** Suppress asyncRequests and on onEnter functions, even if navigationOptions.reload is true */
-//     ignoreReloadCall: boolean;
-//     /** React components */
-//     components: { [key: string]: React.ComponentType<any> };
-//     callbacks: { [key: string]: Function[] };
-//     invokeEventListeners: (eventName: NodeDefaultEventNames | string, params?: NodeEventParams) => void;
-//     removeEventListener: (eventName: NodeDefaultEventNames | string, cb: NodeEventCallback) => void;
-//     addEventListener: (eventName: NodeDefaultEventNames | string, cb: NodeEventCallback) => () => void;
-// };
-
-export type NodeInitParams<Dependencies = any, NodeClass = any> = {
+export type NodeInitParams<Dependencies, NodeClass> = {
     name?: string;
     path?: string;
     preflight?: PreflightFn<Dependencies, NodeClass>;
@@ -51,7 +39,7 @@ export type NodeInitParams<Dependencies = any, NodeClass = any> = {
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
-    /** Suppress asyncRequests and on onEnter functions, even if navigation options.reload === true */
+    /** Suppress preflight and on onEnter functions, even if navigation options.reload === true */
     ignoreReloadCall?: boolean;
     /** React components */
     components?: { [key: string]: React.ComponentType<any> };
@@ -67,7 +55,7 @@ export class Node<Dependencies> extends RouteNode {
     components: { [key: string]: React.ComponentType<any> } = {};
     callbacks: { [key: string]: Function[] } = {};
 
-    constructor(params: NodeInitParams<Dependencies>) {
+    constructor(params: NodeInitParams<Dependencies, Node<Dependencies>>) {
         super(params);
         if (params.defaultParams) {
             this.defaultParams = params.defaultParams;
@@ -117,3 +105,24 @@ export class Node<Dependencies> extends RouteNode {
         this.invokeEventListeners(nodeEvents.ROUTER_RELOAD_NODE);
     }
 }
+
+// type HandlerFunc<F = any> = {
+//     one: (state: string) => F;
+//     two: <U extends F>(res: U) => void;
+// };
+
+// const crt = <W>(sig: HandlerFunc<W>): HandlerFunc<W> => {
+//     return sig;
+// };
+
+// let result = crt({
+//     one: (state) => {
+//         return { one: 'w', two: 'l' };
+//     },
+//     two: (res) => {},
+// });
+
+// let a: HandlerFunc = {
+//     one: (state) => 1,
+//     two: (res) => {},
+// };

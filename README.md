@@ -16,6 +16,7 @@
 4. decode \\ encode params
 5. hash in the path, add new `hash` param to navigation call?
 6. console warnings\errors for 404 and other navigation events ?
+7. export type `Params`
 
 ## RouteNode
 

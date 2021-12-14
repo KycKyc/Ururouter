@@ -5,6 +5,7 @@ import { errorCodes, events } from './constants';
 import { NavigationError, RouterError } from './errors';
 import { generateId } from './helpers';
 import { Node, NodeInitParams } from './node';
+import type { PrefligthResult, OnEnterResult } from './node';
 import { DefaultEventNames } from './types';
 import type { EventCallbackNavigation, EventParamsNavigation } from './types/events';
 
@@ -442,7 +443,8 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         options: NavigationOptions
     ): Promise<NavigationResult<NodeClass>> {
         let canceled = () => id !== this.transitionId;
-        const afterAsync = (result: [{} | void, any]) => {
+        // Accepts previous onEnter result and current preflight result
+        const afterAsync = (result: [OnEnterResult, PrefligthResult]) => {
             if (canceled()) {
                 throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, triggerEvent: events.TRANSITION_CANCELED });
             }
@@ -450,7 +452,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
             return { parentNodeEnter: result[0], preflight: result[1] };
         };
 
-        const afterOnEnter = (enterResult: {} | void) => {
+        const afterOnEnter = (enterResult: OnEnterResult) => {
             if (canceled()) {
                 throw new NavigationError({ code: errorCodes.TRANSITION_CANCELLED, triggerEvent: events.TRANSITION_CANCELED });
             }
@@ -459,7 +461,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         };
 
         let { toDeactivate, toActivate, intersection } = this.transitionPath(fromState, toState);
-        let onEnterChain: Promise<{} | void> = Promise.resolve();
+        let onEnterChain: Promise<OnEnterResult> = Promise.resolve();
         for (let node of toActivate) {
             let preflightResult = null;
             if (node.preflight) {

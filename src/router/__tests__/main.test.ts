@@ -2,20 +2,20 @@ import { RouteNode } from 'routeNode';
 import { Params } from 'types/base';
 import { errorCodes, events } from '../constants';
 import { Redirect } from '../errors';
-import { Node, NodeInitParams, PreflightFn, EnterFn } from '../node';
+import { Node, NodeInitParams } from '../node';
 import { Router42, Options } from '../router';
 
-type EvenBetterInit<Dependencies, NodeClass> = Omit<NodeInitParams<Dependencies, NodeClass>, 'children'> & {
+type EvenBetterInit<Dependencies> = Omit<NodeInitParams<Dependencies, EvenBetter<Dependencies>>, 'children'> & {
     additionalSomething: string;
-    children?: EvenBetterInit<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
+    children?: EvenBetterInit<Dependencies>[] | EvenBetter<Dependencies>[] | EvenBetter<Dependencies>;
 };
 
-class EvenBetter<Dependencies = any> extends Node<Dependencies> {
+class EvenBetter<Dependencies> extends Node<Dependencies> {
     additionalSomething?: string;
-    constructor(signature: EvenBetterInit<Dependencies, EvenBetter<Dependencies>>) {
-        super(signature);
-        if (signature.additionalSomething) {
-            this.additionalSomething = signature.additionalSomething;
+    constructor(params: EvenBetterInit<Dependencies>) {
+        super(params as NodeInitParams<Dependencies, Node<Dependencies>>);
+        if (params.additionalSomething) {
+            this.additionalSomething = params.additionalSomething;
         }
     }
 
@@ -69,6 +69,31 @@ describe('router42', () => {
 
     it('should work with superset of Route node class', async () => {
         let checkAugment = jest.fn();
+        // const test = new Node({
+        //     name: '',
+        //     preflight: () => 1,
+        //     onEnter: ({ node, results }) => {},
+        //     children: [
+        //         {
+        //             name: 'first',
+        //             path: '/first',
+        //             preflight: () => 1,
+        //             onEnter: ({ node }) => {},
+        //         },
+        //         {
+        //             name: 'second',
+        //             path: '/second',
+        //             onEnter: ({ node }) => {},
+        //         },
+        //     ],
+        // });
+
+        // const test2: NodeInitParams<{}, any> = {
+        //     name: '',
+        //     preflight: (): number => 1,
+        //     onEnter: ({ node, results }) => {},
+        // };
+
         const routes = new EvenBetter({
             name: '',
             additionalSomething: 'kek',
@@ -77,6 +102,7 @@ describe('router42', () => {
                     name: 'first',
                     path: '/first',
                     additionalSomething: 'first',
+                    preflight: () => 1,
                     onEnter: ({ node }) => {
                         checkAugment(node.additionalSomething);
                     },
@@ -91,6 +117,8 @@ describe('router42', () => {
                 },
             ],
         });
+
+        routes.onEnter = ({ node }) => {};
 
         const router = new Router42(routes);
         await router.start('/first');
@@ -152,7 +180,7 @@ describe('router42', () => {
                     name: 'user',
                     preflight: () => {
                         inspector('user(preflightCall)');
-                        return new Promise((resolve) => {
+                        return new Promise<string>((resolve) => {
                             setTimeout(() => {
                                 resolve('user(preflightResult)');
                             }, 2000);
@@ -175,7 +203,7 @@ describe('router42', () => {
                             path: '/orders/:id',
                             preflight: () => {
                                 inspector('user.orders(preflightCall)');
-                                return new Promise((resolve) => {
+                                return new Promise<string>((resolve) => {
                                     setTimeout(() => {
                                         resolve('user.orders(preflightResult)');
                                     }, 500);
@@ -200,7 +228,7 @@ describe('router42', () => {
                             },
                             onEnter: async ({ results }) => {
                                 inspector(results.preflight); //.toBe('user.review(async)');
-                                return await new Promise((resolve) => {
+                                return await new Promise<void>((resolve) => {
                                     setTimeout(() => {
                                         resolve();
                                     }, 1000);
@@ -252,7 +280,7 @@ describe('router42', () => {
                                 name: 'top',
                                 path: '/top/:id',
                                 onEnter: async ({ dependencies, node }) => {
-                                    return await new Promise((resolve) => {
+                                    return await new Promise<void>((resolve) => {
                                         setTimeout(() => {
                                             resolve();
                                         }, 1000);
