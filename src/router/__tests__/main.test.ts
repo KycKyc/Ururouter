@@ -444,13 +444,13 @@ describe('router42', () => {
             await router.start('/auctions');
             let result = await router.navigate('*.auctions.index', {});
             expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
-            result = await router.navigate('*.auctions.index', {}, { reload: true });
+            result = await router.navigate('*.auctions.index', {}, { replace: true });
             expect(result.payload.toActivate?.length).toBe(3);
             expect(langEnter.mock.calls.length).toBe(2);
             expect(indexEnter.mock.calls.length).toBe(2);
         });
 
-        it('ignoreReloadCall, nodes that have ignoreReloadCall setting, should work correctly', async () => {
+        it('ignoreReplaceOpt, nodes that have ignoreReplaceOpt setting, should work correctly', async () => {
             const langEnter = jest.fn();
             const indexEnter = jest.fn();
             const mainNodes = [
@@ -466,21 +466,21 @@ describe('router42', () => {
             ];
 
             const router = new Router42([
-                { name: 'en', path: '/', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
-                { name: 'ru', path: '/ru', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
-                { name: 'ko', path: '/ko', children: mainNodes, ignoreReloadCall: true, onEnter: langEnter },
+                { name: 'en', path: '/', children: mainNodes, ignoreReplaceOpt: true, onEnter: langEnter },
+                { name: 'ru', path: '/ru', children: mainNodes, ignoreReplaceOpt: true, onEnter: langEnter },
+                { name: 'ko', path: '/ko', children: mainNodes, ignoreReplaceOpt: true, onEnter: langEnter },
             ]);
 
             await router.start('/auctions');
             let result = await router.navigate('*.auctions.index', {});
             expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
-            result = await router.navigate('*.auctions.index', {}, { reload: true });
+            result = await router.navigate('*.auctions.index', {}, { replace: true });
             expect(result.payload.toActivate?.length).toBe(2);
             expect(langEnter.mock.calls.length).toBe(1);
             expect(indexEnter.mock.calls.length).toBe(2);
         });
 
-        it('ignoreReloadCall, should work even if node is intermediate node', async () => {
+        it('ignoreReplaceOpt, should work even if node is intermediate node', async () => {
             const onEnter = jest.fn();
             const nodes = [
                 {
@@ -491,7 +491,7 @@ describe('router42', () => {
                         {
                             name: 'orders',
                             path: '/orders',
-                            ignoreReloadCall: true,
+                            ignoreReplaceOpt: true,
                             onEnter,
                             children: [
                                 {
@@ -507,7 +507,7 @@ describe('router42', () => {
 
             const router = new Router42(nodes);
             let result = await router.start('/item/orders/top');
-            result = await router.navigate('item.orders.top', {}, { reload: true });
+            result = await router.navigate('item.orders.top', {}, { replace: true });
             expect(result.payload.toActivate?.length).toBe(2);
             expect(result.payload.toDeactivate?.length).toBe(2);
             expect(onEnter.mock.calls.length).toBe(5);

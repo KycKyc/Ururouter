@@ -10,14 +10,14 @@ import { DefaultEventNames } from './types';
 import type { EventCallbackNavigation, EventParamsNavigation } from './types/events';
 
 export interface NavigationOptions {
-    /** replace in browserHistory, nothing else is affected ? */
+    /** Will trigger reactivation of `preflight` and `OnEnter` Node functions (you can think of this as `reload`),
+        then replace state in browserHistory */
     replace?: boolean;
-    /** Will trigger reactivation of asyncRequests and OnEnter Node functions */
-    reload?: boolean;
-    /** browserHistory thing, is this navigation call was triggered by popState event ? */
+    /** browserHistory opt, is navigation call was triggered by popState event ? */
     popState?: boolean;
+    /** Force navigation even if states are equal, if used without replace will trigger only necessary preflight and OnEnter funcs (none?) and then will push a new browserHistory state */
     force?: boolean;
-    [key: string]: any;
+    // [key: string]: any;
 }
 
 export interface StateMeta {
@@ -400,7 +400,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
 
             // Navigate to 404, if set
             if (this.options.allowNotFound && this.options.notFoundRouteName) {
-                return this.navigate(this.options.notFoundRouteName, { path: name }, { replace: true, reload: true });
+                return this.navigate(this.options.notFoundRouteName, { path: name }, { replace: true });
             }
 
             if (name === this.options.defaultRouteName && !nodeState) {
@@ -412,7 +412,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
 
             // Navigate to default route, if set, and if 404 is not set or disabled
             if (this.options.defaultRouteName) {
-                return this.navigate(this.options.defaultRouteName, { replace: true, reload: true });
+                return this.navigate(this.options.defaultRouteName, {}, { replace: true });
             }
 
             // add listner invocation?
@@ -425,9 +425,8 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
             redirected: false,
         });
 
-        // let sameStates = this.state ? this.areStatesEqual(this.state, toState, false) : false;
         let sameStates = this.state ? this.matchCurrentState(toState.name, toState.params, true, false) : false;
-        if (sameStates && !options.force && !options.reload) {
+        if (sameStates && !options.force && !options.replace) {
             // add listner invocation?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.SAME_STATES }) } });
         }
@@ -559,7 +558,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         let segmentName: string | null = null;
         for (let value of compBase) {
             segmentName = segmentName === null ? value : `${segmentName}.${value}`;
-            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.reload || toActivate[node].ignoreReloadCall)) {
+            if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.replace || toActivate[node].ignoreReplaceOpt)) {
                 let commonNode = toActivate.splice(node, 1)[0];
                 toDeactivate.splice(node, 1);
                 intersection.push(commonNode);

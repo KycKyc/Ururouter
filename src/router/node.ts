@@ -39,8 +39,8 @@ export type NodeInitParams<Dependencies, NodeClass> = {
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams?: Params;
-    /** Suppress preflight and on onEnter functions, even if navigation options.reload === true */
-    ignoreReloadCall?: boolean;
+    /** Ignore preflight and on onEnter functions while executing navigation, if navigation options.replace was set to `true` */
+    ignoreReplaceOpt?: boolean;
     /** React components */
     components?: { [key: string]: React.ComponentType<any> };
 };
@@ -51,7 +51,7 @@ export class Node<Dependencies> extends RouteNode {
     encodeParams?(stateParams: Params): Params;
     decodeParams?(pathParams: Params): Params;
     defaultParams: Params = {};
-    ignoreReloadCall: boolean = false;
+    ignoreReplaceOpt: boolean = false;
     components: { [key: string]: React.ComponentType<any> } = {};
     callbacks: { [key: string]: Function[] } = {};
 
@@ -77,8 +77,8 @@ export class Node<Dependencies> extends RouteNode {
             this.decodeParams = params.decodeParams;
         }
 
-        if (params.ignoreReloadCall) {
-            this.ignoreReloadCall = params.ignoreReloadCall;
+        if (params.ignoreReplaceOpt) {
+            this.ignoreReplaceOpt = params.ignoreReplaceOpt;
         }
 
         if (params.components) {
