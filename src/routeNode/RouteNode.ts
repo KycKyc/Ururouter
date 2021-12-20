@@ -1,12 +1,9 @@
 import { IOptions as QueryParamFormats } from 'search-params';
 import { Path, URLParamsEncodingType } from '../pathParser';
 
-import type { Params } from '../types/base';
+import type { Params, Anchor, TrailingSlashMode, QueryParamsMode } from '../types/base';
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap, getDefaultParamsFromNodes } from './helpers';
 import matchChildren from './matchChildren';
-
-export type TrailingSlashMode = 'default' | 'never' | 'always';
-export type QueryParamsMode = 'default' | 'strict' | 'loose';
 
 export interface BuildOptions {
     trailingSlashMode?: TrailingSlashMode;
@@ -20,11 +17,6 @@ export interface MatchOptions extends BuildOptions {
     strictTrailingSlash?: boolean;
 }
 
-export interface MatchResponse {
-    nodes: RouteNode[];
-    params: Record<string, any>;
-}
-
 export interface RouteNodeStateMeta {
     params: {
         [routeName: string]: {
@@ -35,7 +27,8 @@ export interface RouteNodeStateMeta {
 
 export interface RouteNodeState {
     name: string;
-    params: Record<string, any>;
+    params: Params;
+    anchor: Anchor;
     meta: RouteNodeStateMeta;
 }
 
@@ -43,10 +36,10 @@ export interface RouteNodeOptions {
     sort?: boolean;
 }
 
-export type BasicNodeSignature = {
+export type BasicNodeInitParams = {
     name?: string;
     path?: string;
-    children?: BasicNodeSignature[] | RouteNode[] | RouteNode;
+    children?: BasicNodeInitParams[] | RouteNode[] | RouteNode;
     options?: RouteNodeOptions;
     defaultParams?: Params;
 };
@@ -54,7 +47,7 @@ export type BasicNodeSignature = {
 const trailingSlash = /(.+?)(\/)(\?.*$|$)/gim;
 
 export class RouteNode {
-    ['constructor']: new (signature: BasicNodeSignature, parent?: RouteNode) => this;
+    ['constructor']: new (signature: BasicNodeInitParams, parent?: RouteNode) => this;
     name: string;
     treeNames: string[];
     path: string;
@@ -65,7 +58,7 @@ export class RouteNode {
     isRoot: boolean;
     defaultParams: Params = {};
 
-    constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: BasicNodeSignature) {
+    constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: BasicNodeInitParams) {
         this.name = name;
         this.treeNames = [];
         this.absolute = /^~/.test(path);
@@ -103,7 +96,7 @@ export class RouteNode {
      * @param {boolean} sort: be careful with sort, without sorting router will not work correctly
      * @returns
      */
-    add(route: BasicNodeSignature | BasicNodeSignature[] | this | this[], sort: boolean = true): this {
+    add(route: BasicNodeInitParams | BasicNodeInitParams[] | this | this[], sort: boolean = true): this {
         if (route === undefined || route === null) {
             return this;
         }
@@ -287,7 +280,7 @@ export class RouteNode {
     }
 
     /**
-     * Get syntetic path\\template for given route name
+     * Get synthezed path\\template for given route name
      * @param routeName route name, e.g `path.to.something`
      * @returns {string} path, e.g `/blogs/:blogId/posts/:postId`
      */
@@ -302,7 +295,7 @@ export class RouteNode {
      * @param routeName route name, e.g `path.to.something`
      * @returns {Object} params, e.g. `{param: 1, param: 2}`
      */
-    getDefaultParams(routeName: string): Record<string, any> {
+    getDefaultParams(routeName: string): Params {
         const nodesByName = this.getNodesByName(routeName);
 
         return nodesByName ? getDefaultParamsFromNodes(nodesByName) : {};
@@ -320,7 +313,7 @@ export class RouteNode {
         }
     }
 
-    buildPath(name: string, params: Record<string, any> = {}, options: BuildOptions = {}): string {
+    buildPath(name: string, params: Params = {}, anchor: Anchor = null, options: BuildOptions = {}): string {
         const nodes = this.getNodesByName(name);
 
         if (!nodes) {
@@ -331,10 +324,10 @@ export class RouteNode {
             nodes.splice(0, 0, this);
         }
 
-        return buildPathFromNodes(nodes, params, options);
+        return buildPathFromNodes(nodes, params, anchor, options);
     }
 
-    buildState(name: string, params: Record<string, any> = {}): RouteNodeState | null {
+    buildState(name: string, params: Params = {}, anchor: Anchor = null): RouteNodeState | null {
         const nodes = this.getNodesByName(name);
 
         if (!nodes || !nodes.length) {
@@ -348,6 +341,7 @@ export class RouteNode {
         return {
             name,
             params,
+            anchor,
             meta: getMetaFromNodes(nodes),
         };
     }
@@ -390,7 +384,6 @@ export class RouteNode {
 
         const topLevelNodes = this.parser ? new Map([[this.name, this]]) : this.nameMap;
         const match = matchChildren(topLevelNodes, path, options);
-
         if (!match) {
             return null;
         }
@@ -405,4 +398,4 @@ export class RouteNode {
  * @param init
  * @returns RouteNode
  */
-export const createNode = <Augments>(init: BasicNodeSignature & Augments) => new RouteNode(init) as RouteNode & Augments;
+export const createNode = <Augments>(init: BasicNodeInitParams & Augments) => new RouteNode(init) as RouteNode & Augments;

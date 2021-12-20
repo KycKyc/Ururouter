@@ -5,3 +5,4 @@ export type QueryParamsMode = 'default' | 'strict' | 'loose';
 
 export type Callback = (...args: any[]) => void;
 export type Params = Record<string, any>;
+export type Anchor = string | null;

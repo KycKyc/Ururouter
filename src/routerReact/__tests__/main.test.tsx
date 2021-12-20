@@ -73,6 +73,7 @@ describe('React', () => {
         });
 
         getByText('Page content of Auctions index');
+        expect(router.state?.anchor).toBe('test');
     });
 
     describe('Hooks', () => {
@@ -504,7 +505,7 @@ const createReactApp = (router: Router42<any, any>, Profile: React.ComponentType
                 <Link name='*.profile.index' params={{ name: 'KycKyc' }}>
                     Profile Index
                 </Link>
-                <Link name='*.profile.auctions' params={{ name: 'KycKyc' }}>
+                <Link name='*.profile.auctions' params={{ name: 'KycKyc' }} anchor={'test'}>
                     Profile - Auctions
                 </Link>
             </nav>

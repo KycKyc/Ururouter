@@ -1,5 +1,7 @@
 import { build } from 'search-params';
-import { BuildOptions, MatchResponse, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
+import type { Params, Anchor } from 'types/base';
+import type { MatchResponse } from './matchChildren';
+import { BuildOptions, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
 
 export const getPathFromNodes = (nodes: RouteNode[]): string | null => (nodes ? nodes.map((node) => node.path).join('') : null);
 
@@ -59,15 +61,17 @@ export const buildStateFromMatch = (match: MatchResponse): RouteNodeState | null
         .join('.');
 
     const params = match.params;
+    const anchor = match.anchor;
 
     return {
         name,
         params,
+        anchor,
         meta: getMetaFromNodes(match.nodes),
     };
 };
 
-export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, any> = {}, options: BuildOptions = {}) => {
+export const buildPathFromNodes = (nodes: RouteNode[], params: Params = {}, anchor: Anchor = null, options: BuildOptions = {}) => {
     const { queryParamsMode = 'default', trailingSlashMode = 'default' } = options;
     const searchParams: string[] = [];
     const nonSearchParams: string[] = [];
@@ -91,7 +95,7 @@ export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, an
         searchParams.push(...extraParams);
     }
 
-    const searchParamsObject = searchParams.reduce<Record<string, any>>((acc, paramName) => {
+    const searchParamsObject = searchParams.reduce<Params>((acc, paramName) => {
         if (Object.keys(params).indexOf(paramName) !== -1) {
             acc[paramName] = params[paramName];
         }
@@ -123,7 +127,7 @@ export const buildPathFromNodes = (nodes: RouteNode[], params: Record<string, an
         finalPath = /\/$/.test(path) ? path.slice(0, -1) : path;
     }
 
-    return finalPath + (searchPart ? '?' + searchPart : '');
+    return finalPath + (searchPart ? '?' + searchPart : '') + (anchor ? '#' + anchor : '');
 };
 
 export const sortedNameMap = (originalMap: Map<string, RouteNode>): Map<string, RouteNode> => {

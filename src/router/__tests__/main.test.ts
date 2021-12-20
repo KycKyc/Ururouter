@@ -1,5 +1,4 @@
 import { RouteNode } from 'routeNode';
-import { Params } from 'types/base';
 import { errorCodes, events } from '../constants';
 import { Redirect } from '../errors';
 import { Node, NodeInitParams } from '../node';
@@ -173,7 +172,7 @@ describe('router42', () => {
             expect(result.payload.toActivate![0].name).toBe('page');
         });
 
-        it('asyncRequests & onEnter functions should work', async () => {
+        it('preflight & onEnter functions should work', async () => {
             const inspector = jest.fn();
             const router = new Router42([
                 {
@@ -403,24 +402,39 @@ describe('router42', () => {
 
         it('should work if states are the same and force == true', async () => {
             const router = createRouter();
-
             await router.start('/');
+
             await router.navigate('en.profile.index', { name: 'KycKyc' });
-            let result = await router.navigate('en.profile.index', { name: 'KycKyc' }, { force: true });
+            let result = await router.navigate('en.profile.index', { name: 'KycKyc' }, null, { force: true });
+            expect(result.type).toBe('success');
+
+            // Navigate to path with anchor
+            result = await router.navigate('en.profile.index', { name: 'KycKyc' }, 'anchor');
+            expect(result.type).toBe('success');
+
+            result = await router.navigate('en.profile.index', { name: 'KycKyc' }, 'anchor', { force: true });
             expect(result.type).toBe('success');
         });
 
         it('should throw if states are the same and force == false', async () => {
             const router = createRouter();
-
             await router.start('/');
+
             await router.navigate('en.profile.index', { name: 'KycKyc' });
             let result = await router.navigate('en.profile.index', { name: 'KycKyc' });
             expect(result.type).toBe('error');
             expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
+
+            // Navigate to path with anchor
+            result = await router.navigate('en.profile.index', { name: 'KycKyc' }, 'anchor');
+            expect(result.type).toBe('success');
+
+            result = await router.navigate('en.profile.index', { name: 'KycKyc' }, 'anchor');
+            expect(result.type).toBe('error');
+            expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
         });
 
-        it('reload should work', async () => {
+        it('option: `replace`, should work', async () => {
             const langEnter = jest.fn();
             const indexEnter = jest.fn();
             const mainNodes = [
@@ -444,13 +458,13 @@ describe('router42', () => {
             await router.start('/auctions');
             let result = await router.navigate('*.auctions.index', {});
             expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
-            result = await router.navigate('*.auctions.index', {}, { replace: true });
+            result = await router.navigate('*.auctions.index', {}, null, { replace: true });
             expect(result.payload.toActivate?.length).toBe(3);
             expect(langEnter.mock.calls.length).toBe(2);
             expect(indexEnter.mock.calls.length).toBe(2);
         });
 
-        it('ignoreReplaceOpt, nodes that have ignoreReplaceOpt setting, should work correctly', async () => {
+        it('option: `ignoreReplaceOpt`, nodes, that have that opt, should not call onEnter even if `replace` is set', async () => {
             const langEnter = jest.fn();
             const indexEnter = jest.fn();
             const mainNodes = [
@@ -474,13 +488,13 @@ describe('router42', () => {
             await router.start('/auctions');
             let result = await router.navigate('*.auctions.index', {});
             expect(result.payload.error?.code).toBe(errorCodes.SAME_STATES);
-            result = await router.navigate('*.auctions.index', {}, { replace: true });
+            result = await router.navigate('*.auctions.index', {}, null, { replace: true });
             expect(result.payload.toActivate?.length).toBe(2);
             expect(langEnter.mock.calls.length).toBe(1);
             expect(indexEnter.mock.calls.length).toBe(2);
         });
 
-        it('ignoreReplaceOpt, should work even if node is intermediate node', async () => {
+        it('option: `ignoreReplaceOpt`, should work even if node is intermediate one', async () => {
             const onEnter = jest.fn();
             const nodes = [
                 {
@@ -507,7 +521,7 @@ describe('router42', () => {
 
             const router = new Router42(nodes);
             let result = await router.start('/item/orders/top');
-            result = await router.navigate('item.orders.top', {}, { replace: true });
+            result = await router.navigate('item.orders.top', {}, null, { replace: true });
             expect(result.payload.toActivate?.length).toBe(2);
             expect(result.payload.toDeactivate?.length).toBe(2);
             expect(onEnter.mock.calls.length).toBe(5);
@@ -548,14 +562,14 @@ describe('router42', () => {
             await router.navigate('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' });
             expect(router.isActive('ru.profile.auctions', { name: 'KycKyc' })).toBe(true);
             expect(router.isActive('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' })).toBe(true);
-            expect(router.isActive('ru.profile.auctions', { name: 'KycKyc' }, true, false)).toBe(false);
+            expect(router.isActive('ru.profile.auctions', { name: 'KycKyc' }, null, true, false)).toBe(false);
         });
 
         it('should correctrly identify the current active route, partial path', async () => {
             const router = createRouter();
             await router.start('/');
             await router.navigate('ru.profile.auctions', { name: 'KycKyc', kek: 'pek' });
-            expect(router.isActive('ru.profile', { name: 'KycKyc' }, false)).toBe(true);
+            expect(router.isActive('ru.profile', { name: 'KycKyc' }, null, false)).toBe(true);
             expect(router.isActive('ru.profile', { name: 'KycKyc' })).toBe(false);
         });
     });
@@ -590,12 +604,12 @@ describe('router42', () => {
 
         it("should work with wildcard(*) in notFoundRouteName, even if initial route name wasn't found in a tree", async () => {
             const router = createRouter({ notFoundRouteName: '*.notFound' });
-            router.hooks.preNavigate = (name, params) => {
+            router.hooks.preNavigate = (name, params, anchor) => {
                 if (name === '*.notFound') {
                     name = 'ko.notFound';
                 }
 
-                return [name, params];
+                return [name, params, anchor];
             };
 
             let result = await router.start('/blackhole');
@@ -632,12 +646,12 @@ describe('router42', () => {
 
         it("should work with wildcard(*) in defaultRouteName, even if initial route name wasn't found in a tree", async () => {
             const router = createRouter({ defaultRouteName: '*.index', allowNotFound: false });
-            router.hooks.preNavigate = (name, params) => {
+            router.hooks.preNavigate = (name, params, anchor) => {
                 if (name === '*.index') {
                     name = 'ko.index';
                 }
 
-                return [name, params];
+                return [name, params, anchor];
             };
 
             let result = await router.start('/blackhole');
@@ -719,19 +733,55 @@ describe('router42', () => {
             router.stop();
         });
 
+        it('start, navigation and stop, with anchor (/path?search#anchor)', async () => {
+            let navResult;
+            const router = createRouter();
+            navResult = await router.start('/#test');
+            expect(navResult.payload.toState?.anchor).toBe('test');
+            navResult = await router.navigate('en.profile.index', { name: 'KycKyc' }, 'test-2');
+            expect(navResult.payload.toState?.anchor).toBe('test-2');
+            //
+            // First history repolace call, router start.
+            //
+            // State
+            expect(historyReplaceSpy.mock.calls[0][0]).toMatchObject({ name: 'en.index', params: {}, path: '/', anchor: 'test' });
+            // Title
+            expect(historyReplaceSpy.mock.calls[0][1]).toBe('');
+            // Path
+            expect(historyReplaceSpy.mock.calls[0][2]).toBe('/#test');
+
+            //
+            // First history push call, router navigation.
+            //
+            // State
+            expect(historyPushSpy.mock.calls[0][0]).toMatchObject({
+                name: 'en.profile.index',
+                params: { name: 'KycKyc' },
+                path: '/profile/KycKyc/',
+                anchor: 'test-2',
+            });
+
+            // Title
+            expect(historyPushSpy.mock.calls[0][1]).toBe('');
+            // Path
+            expect(historyPushSpy.mock.calls[0][2]).toBe('/profile/KycKyc/#test-2');
+
+            router.stop();
+        });
+
         it('get location', async () => {
             const originalLocation = { ...window.location };
             let windowSpy = jest.spyOn(window, 'location', 'get');
             windowSpy.mockImplementation(() => {
                 return {
                     ...originalLocation,
-                    pathname: '/profile/kyckyc',
+                    pathname: '/profile/kyckyc?kek=w#anchor',
                 };
             });
 
             const router = createRouter();
             let result = await router.start();
-            expect(result.payload.toState).toMatchObject({ name: 'en.profile.index', path: '/profile/kyckyc/' });
+            expect(result.payload.toState).toMatchObject({ name: 'en.profile.index', path: '/profile/kyckyc/', anchor: 'anchor', params: { kek: 'w' } });
             windowSpy.mockRestore();
         });
 
@@ -739,9 +789,9 @@ describe('router42', () => {
             const router = createRouter();
             await router.start();
 
-            // double call, so back will lead us to correct entry
-            window.history.pushState({ name: 'en.profile.auctions', params: { name: 'kyckyc' } }, '', '/profile/kyckyc/auctions');
-            window.history.pushState({ name: 'en.profile.auctions', params: { name: 'kyckyc' } }, '', '/profile/kyckyc/auctions');
+            // double push, to fill history with some data, so back will lead us to desiered entry
+            window.history.pushState({ name: 'en.profile.auctions', params: { name: 'kyckyc' }, anchor: 'test' }, '', '/profile/kyckyc/auctions#test'); // <- After back call
+            window.history.pushState({ name: 'en.profile.auctions', params: { name: 'notkyckyc' } }, '', '/profile/notkyckyc/auctions'); // <- current location
 
             window.history.back();
 
@@ -750,6 +800,7 @@ describe('router42', () => {
                     expect(router.state!.name).toBe('en.profile.auctions');
                     expect(router.state!.params).toEqual({ name: 'kyckyc' });
                     expect(router.state!.path).toBe('/profile/kyckyc/auctions');
+                    expect(router.state!.anchor).toBe('test');
                     fulfill();
                 }, 200);
             });
@@ -759,9 +810,9 @@ describe('router42', () => {
             const router = createRouter();
             await router.start();
 
-            // double call, so back will lead us to correct entry
-            window.history.pushState(null, '', '/profile/kyckyc/auctions');
-            window.history.pushState(null, '', '/profile/kyckyc/auctions');
+            // double push, just to fill history with some junk, and to be able to call "back"
+            window.history.pushState(null, '', '/profile/kyckyc/auctions'); // <- After back call
+            window.history.pushState(null, '', '/profile/notkyckyc/auctions'); // <- current location
 
             let __mock = jest.spyOn(router.historyController, 'getLocation').mockImplementation(() => '/profile/kyckyc/');
 
@@ -784,13 +835,18 @@ describe('router42', () => {
             await router.start();
 
             // three calls, to test same state
-            window.history.pushState(null, '', '/profile/kyckyc/auctions');
-            window.history.pushState(null, '', '/profile/kyckyc/auctions');
-            window.history.pushState(null, '', '/profile/kyckyc/auctions');
+            window.history.pushState(null, '', '/profile/kyckyc/auctions#test'); // <- Fourth back
+            window.history.pushState(null, '', '/profile/kyckyc/auctions#test'); // <- Third back
+            window.history.pushState(null, '', '/profile/kyckyc/auctions'); // <- Second back
+            window.history.pushState(null, '', '/profile/kyckyc/auctions'); // <- First back
+            window.history.pushState(null, '', '/profile/kyckyc/auctions'); // <- Current position
 
             let id1: string = 'id1',
-                id2: string = 'id2';
+                id2: string = 'id2',
+                id3: string = 'id3',
+                id4: string = 'id4';
 
+            // First back
             window.history.back();
             await new Promise<void>((fulfill) => {
                 setTimeout(() => {
@@ -799,6 +855,7 @@ describe('router42', () => {
                 }, 200);
             });
 
+            // Second back
             window.history.back();
             await new Promise<void>((fulfill) => {
                 setTimeout(() => {
@@ -808,6 +865,28 @@ describe('router42', () => {
             });
 
             expect(id1 === id2).toBeTruthy();
+
+            // Third back
+            window.history.back();
+            await new Promise<void>((fulfill) => {
+                setTimeout(() => {
+                    id3 = router.state!.meta!.id;
+                    fulfill();
+                }, 200);
+            });
+
+            expect(id2 !== id3).toBeTruthy();
+
+            // Fourth back
+            window.history.back();
+            await new Promise<void>((fulfill) => {
+                setTimeout(() => {
+                    id4 = router.state!.meta!.id;
+                    fulfill();
+                }, 200);
+            });
+
+            expect(id3 === id4).toBeTruthy();
         });
     });
 });

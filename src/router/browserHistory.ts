@@ -1,3 +1,4 @@
+import type { Params, Anchor } from 'types/base';
 import { NavigationOptions, Router42, State } from './router';
 
 interface BrowserState {}
@@ -12,8 +13,11 @@ class BrowserHistory<Dependencies> {
     }
 
     getLocation() {
-        const correctedPath = safelyEncodePath(window.location.pathname);
-        return (correctedPath || '/') + window.location.search;
+        // Should be correctly encoded by the browser, but we will reencode them, just in case
+        const path = safelyEncodePath(window.location.pathname) || '/';
+        const search = window.location.search;
+        const hash = safelyEncodePath(window.location.hash);
+        return path + search + hash;
     }
 
     private getHash() {
@@ -33,19 +37,20 @@ class BrowserHistory<Dependencies> {
     }
 
     private onPopState(evt: PopStateEvent) {
-        let name: string | null, params: Record<string, any> | null;
-        if (evt.state?.name == undefined) {
-            ({ name, params } = this.router.matchPath(this.getLocation()));
+        let name: string | null, params: Params | null, anchor: Anchor;
+        if (evt.state?.name === undefined) {
+            ({ name, params, anchor } = this.router.matchPath(this.getLocation()));
         } else {
             name = evt.state.name;
             params = evt.state.params;
+            anchor = evt.state.anchor;
         }
 
         // Withdraw if something are missing
         if (name === null || params === null) return;
-        if (this.router.state && this.router.matchCurrentState(name, params, true, false)) return;
+        if (this.router.state && this.router.matchCurrentState(name, params, anchor, true, false)) return;
 
-        this.router.navigate(name, params, { popState: true });
+        this.router.navigate(name, params, anchor, { popState: true });
     }
 
     private updateState(toState: State<any> | null, url: string, replace: boolean) {
@@ -54,12 +59,11 @@ class BrowserHistory<Dependencies> {
                   meta: toState.meta,
                   name: toState.name,
                   params: toState.params,
+                  anchor: toState.anchor,
                   path: toState.path,
               }
             : toState;
 
-        // console.dir(toState, { depth: 5 });
-        // console.dir(trimmedState, { depth: 5 });
         if (replace) this.replaceState(trimmedState, url);
         else this.pushState(trimmedState, url);
     }
@@ -85,12 +89,7 @@ class BrowserHistory<Dependencies> {
 
         // const statesAreEqual = fromState !== null && this.router.areStatesEqual(fromState, toState, false);
         const replace = options.replace || !hasState; // || statesAreEqual;
-        let url = this.router.buildPath(toState.name, toState.params);
-
-        // why only on null state ?
-        if (fromState === null) {
-            url += this.getHash();
-        }
+        let url = this.router.buildPath(toState.name, toState.params, toState.anchor);
 
         if (!options.popState) {
             this.updateState(toState, url, replace);

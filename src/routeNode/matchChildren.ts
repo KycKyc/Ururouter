@@ -1,11 +1,19 @@
 import { TestMatch } from 'pathParser';
 import type { trailingSlashMode as tSM } from 'pathParser';
 import { omit, parse } from 'search-params';
-import { MatchOptions, MatchResponse, RouteNode } from './RouteNode';
+import type { Anchor, Params } from 'types/base';
+import { MatchOptions, RouteNode } from './RouteNode';
 
-const splitPath = (path: string): [string, string] => {
-    let result = path.split('?');
-    return [result[0], result[1] || ''];
+export interface MatchResponse {
+    nodes: RouteNode[];
+    params: Params;
+    anchor: Anchor;
+}
+
+const splitPath = (path: string): [string, string, string | null] => {
+    let [remaining, anchor] = path.split('#', 2);
+    let [purePath, search] = remaining.split('?', 2);
+    return [purePath, search || '', anchor || null];
 };
 
 const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: MatchOptions = {}) => {
@@ -13,10 +21,11 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
     const currentMatch: MatchResponse = {
         nodes: [],
         params: {},
+        anchor: null,
     };
 
     let search: string;
-    [path, search] = splitPath(path);
+    [path, search, currentMatch.anchor] = splitPath(path);
 
     let processNextNodes = true;
     let consumed: string | undefined;

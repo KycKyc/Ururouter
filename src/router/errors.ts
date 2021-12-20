@@ -1,4 +1,4 @@
-import { Params } from 'types/base';
+import { Params, Anchor } from 'types/base';
 import { errorCodes, events } from './constants';
 import { DefaultErrorCodes, EventNames, ErrorCodes } from './types';
 
@@ -20,14 +20,14 @@ type NavErrParams<CustomErrorCodes = never, CustomEventNames = never> = {
     code: ErrorCodes<CustomErrorCodes>;
     triggerEvent?: EventNames<CustomEventNames>;
     message?: string;
-    redirect?: { to: string; params: Params };
+    redirect?: { to: string; params: Params; anchor: Anchor };
     [key: string]: any;
 };
 
 export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
     code: ErrorCodes<CustomErrorCodes>;
     triggerEvent?: EventNames<CustomEventNames>;
-    redirect?: { to: string; params: Params };
+    redirect?: { to: string; params: Params; anchor: Anchor };
     args?: { [key: string]: any };
     constructor({ code, triggerEvent, message, redirect, ...args }: NavErrParams<CustomErrorCodes, CustomEventNames>) {
         super(message);
@@ -45,11 +45,11 @@ export class NavigationError<CustomErrorCodes, CustomEventNames> extends Error {
 }
 
 export class Redirect extends NavigationError<string, string> {
-    constructor({ to, params, ...args }: { to: string; params: Params }) {
+    constructor({ to, params, anchor = null, ...args }: { to: string; params: Params; anchor?: Anchor }) {
         super({
             code: errorCodes.TRANSITION_REDIRECTED,
             triggerEvent: events.TRANSITION_REDIRECTED,
-            redirect: { to, params },
+            redirect: { to, params, anchor },
             ...args,
         });
     }

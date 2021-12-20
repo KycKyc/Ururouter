@@ -1,5 +1,5 @@
 import type { RouteNodeState } from 'routeNode';
-import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params } from 'types/base';
+import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params, Anchor } from 'types/base';
 import { BrowserHistory } from './browserHistory';
 import { errorCodes, events } from './constants';
 import { NavigationError, RouterError } from './errors';
@@ -17,7 +17,6 @@ export interface NavigationOptions {
     popState?: boolean;
     /** Force navigation even if states are equal, if used without replace will trigger only necessary preflight and OnEnter funcs (none?) and then will push a new browserHistory state */
     force?: boolean;
-    // [key: string]: any;
 }
 
 export interface StateMeta {
@@ -30,6 +29,8 @@ export interface StateMeta {
 export interface State<NodeClass> {
     name: string;
     params: Params;
+    /** Anchor for in-page navigation */
+    anchor: Anchor;
     meta?: StateMeta;
     path: string;
     activeNodes: NodeClass[];
@@ -98,7 +99,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     };
 
     hooks: {
-        preNavigate?: (name: string, params?: Params) => [name: string, params: Params | undefined];
+        preNavigate?: (name: string, params: Params, anchor: Anchor) => [name: string, params: Params, anchor: Anchor];
     } = {
         preNavigate: undefined,
     };
@@ -201,12 +202,17 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     //
     // Routes
     //
-    buildPath(name: string, params?: Params) {
+    buildPath(name: string, params: Params = {}, anchor: Anchor = null) {
         name = this.wildcardFormat(name);
         let defaultParams = this.rootNode.getDefaultParams(name);
         const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options.pathOptions;
 
-        return this.rootNode.buildPath(name, { ...defaultParams, ...params }, { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding });
+        return this.rootNode.buildPath(name, { ...defaultParams, ...params }, anchor, {
+            trailingSlashMode,
+            queryParamsMode,
+            queryParamFormats,
+            urlParamsEncoding,
+        });
     }
 
     /**
@@ -217,24 +223,24 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     matchPath(path: string) {
         const match = this.rootNode.matchPath(path, this.options.pathOptions);
         if (match == null) {
-            return { name: null, params: null };
+            return { name: null, params: null, anchor: null };
         }
 
-        const { name, params } = match;
-        return { name, params };
+        const { name, params, anchor } = match;
+        return { name, params, anchor };
     }
 
-    isActive(name: string, params?: Params, exact = true, ignoreQueryParams = true): boolean {
+    isActive(name: string, params: Params = {}, anchor: Anchor = null, exact = true, ignoreQueryParams = true): boolean {
         if (this.state === null) return false;
         name = this.wildcardFormat(name);
-        return this.matchCurrentState(name, params, exact, ignoreQueryParams);
+        return this.matchCurrentState(name, params, anchor, exact, ignoreQueryParams);
     }
 
     //
     // State management
     //
 
-    makeState(name: string, params: Params = {}, meta?: Omit<StateMeta, 'id'>): State<NodeClass> {
+    makeState(name: string, params: Params = {}, anchor: Anchor = null, meta?: Omit<StateMeta, 'id'>): State<NodeClass> {
         let defaultParams = this.rootNode.getDefaultParams(name);
 
         return {
@@ -243,6 +249,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
                 ...defaultParams,
                 ...params,
             },
+            anchor,
             meta: meta
                 ? {
                       ...meta,
@@ -263,11 +270,12 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
      * @param ignoreQueryParams
      * @returns
      */
-    matchCurrentState(name: string, params: Params = {}, exact = true, ignoreQueryParams = true) {
+    matchCurrentState(name: string, params: Params = {}, anchor: Anchor, exact = true, ignoreQueryParams = true) {
         if (this.state == null) return false;
 
         if (exact) {
             if (this.state.name !== name) return false;
+            if (this.state.anchor !== anchor) return false;
         } else {
             const regex = new RegExp('^' + name + '($|\\..*$)');
             if (!regex.test(this.state.name)) return false;
@@ -283,13 +291,13 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         return currentNodeParams.length === targetNodeParams.length && currentNodeParams.every((p) => this.state!.params[p] === params[p]);
     }
 
-    buildNodeState(name: string, params: Params = {}) {
+    buildNodeState(name: string, params: Params = {}, anchor: Anchor = null) {
         let _params = {
             ...this.rootNode.getDefaultParams(name),
             ...params,
         };
 
-        return this.rootNode.buildState(name, _params);
+        return this.rootNode.buildState(name, _params, anchor);
     }
 
     //
@@ -344,9 +352,10 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
      * @param options Navigation options
      * @returns
      */
-    navigateByPath(path: string, params: Params = {}, options: NavigationOptions = {}) {
+    navigateByPath(path: string, params: Params = {}, anchor: Anchor = null, options: NavigationOptions = {}) {
         let nodeState = this.rootNode.matchPath(path, this.options.pathOptions);
-        return this.navigate(nodeState?.name || path, { ...(nodeState?.params || {}), ...params }, options);
+        // TODO: write test for anchor override
+        return this.navigate(nodeState?.name || path, { ...(nodeState?.params || {}), ...params }, anchor || nodeState?.anchor, options);
     }
 
     wildcardFormat(name: string): string {
@@ -371,14 +380,14 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         return result.join('.');
     }
 
-    navigate(name: string, params?: Params, options: NavigationOptions = {}): Promise<NavigationResult<NodeClass>> {
+    navigate(name: string, params: Params = {}, anchor: Anchor = null, options: NavigationOptions = {}): Promise<NavigationResult<NodeClass>> {
         if (!this.started) {
             // throw instead ?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.ROUTER_NOT_STARTED }) } });
         }
 
         if (this.hooks.preNavigate) {
-            [name, params] = this.hooks.preNavigate(name, params);
+            [name, params = {}, anchor = null] = this.hooks.preNavigate(name, params, anchor);
         }
 
         name = this.wildcardFormat(name);
@@ -386,7 +395,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         let nodeState: RouteNodeState | null = null;
 
         if (name) {
-            nodeState = this.buildNodeState(name, params);
+            nodeState = this.buildNodeState(name, params, anchor);
         }
 
         if (!nodeState) {
@@ -400,7 +409,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
 
             // Navigate to 404, if set
             if (this.options.allowNotFound && this.options.notFoundRouteName) {
-                return this.navigate(this.options.notFoundRouteName, { path: name }, { replace: true });
+                return this.navigate(this.options.notFoundRouteName, { path: name }, null, { replace: true });
             }
 
             if (name === this.options.defaultRouteName && !nodeState) {
@@ -412,20 +421,20 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
 
             // Navigate to default route, if set, and if 404 is not set or disabled
             if (this.options.defaultRouteName) {
-                return this.navigate(this.options.defaultRouteName, {}, { replace: true });
+                return this.navigate(this.options.defaultRouteName, {}, null, { replace: true });
             }
 
             // add listner invocation?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.ROUTE_NOT_FOUND }) } });
         }
 
-        const toState = this.makeState(nodeState.name, nodeState.params, {
+        const toState = this.makeState(nodeState.name, nodeState.params, nodeState.anchor, {
             params: nodeState.meta.params,
             navigation: options,
             redirected: false,
         });
 
-        let sameStates = this.state ? this.matchCurrentState(toState.name, toState.params, true, false) : false;
+        let sameStates = this.state ? this.matchCurrentState(toState.name, toState.params, toState.anchor, true, false) : false;
         if (sameStates && !options.force && !options.replace) {
             // add listner invocation?
             return Promise.resolve({ type: 'error', payload: { error: new NavigationError({ code: errorCodes.SAME_STATES }) } });
@@ -500,7 +509,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
             }
 
             if (e.code === errorCodes.TRANSITION_REDIRECTED) {
-                return this.navigate(e.redirect.to, e.redirect.params, { force: true });
+                return this.navigate(e.redirect.to, e.redirect.params, e.redirect.anchor, { force: true });
             }
 
             if (e.triggerEvent) {
