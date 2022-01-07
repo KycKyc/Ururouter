@@ -100,7 +100,8 @@ export class Node<Dependencies> extends RouteNode {
         return () => this.removeEventListener(eventName, cb);
     }
 
-    updateComponent(name: string, component: React.ComponentType<any>) {
+    updateComponent(name: string, component: React.ComponentType<any>, force = false) {
+        if (this.components[name] === component && !force) return;
         this.components[name] = component;
         this.invokeEventListeners(nodeEvents.ROUTER_RELOAD_NODE);
     }

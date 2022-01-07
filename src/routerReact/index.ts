@@ -14,3 +14,6 @@ export { withRouterState } from './hocs/withRouterState';
 export { useRouteNode } from './hooks/useRouteNode';
 export { useRouter } from './hooks/useRouter';
 export { useRouterState } from './hooks/useRouterState';
+
+// Helpres
+export { useScrollIntoView, scrollIntoView } from './helpers';
