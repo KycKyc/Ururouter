@@ -7,6 +7,7 @@ import { events } from 'router/constants';
 import { Node } from 'router/node';
 import { Router42, Options, State } from 'router/router';
 import { Link } from '../components/Link';
+import { NodeComponent } from '../components/NodeComponent';
 import { Route, RouteState } from '../components/Route';
 import { isNodeActive } from '../helpers';
 import { withNode } from '../hocs/withNode';
@@ -427,6 +428,50 @@ describe('React', () => {
             expect(renderCounter.mock.calls[1][0]).toBe('profile');
         });
     });
+
+    it('NodeComponent should work', async () => {
+        const router = createRouter();
+        await router.start('/');
+
+        const reactApp = (
+            <RouterProvider router={router}>
+                <Route name={'*.index'}>
+                    <section>
+                        <h1>Index</h1>
+                    </section>
+                </Route>
+                <Route name={'*.profile'}>
+                    <NodeComponent node='*.profile' component='alt'>
+                        <Route name={'*.profile.index'}>
+                            <span>Profile index</span>
+                        </Route>
+                        <Route name={'*.profile.auctions'}>
+                            <span>Profile auctions</span>
+                        </Route>
+                    </NodeComponent>
+                </Route>
+            </RouterProvider>
+        );
+
+        const rootElement = document.createElement('div');
+        rootElement.setAttribute('id', 'root');
+
+        let { getByText } = render(reactApp, { container: rootElement });
+
+        getByText('Index');
+
+        await act(async () => {
+            await router.navigate('en.profile.index', { name: 'KycKyc' });
+        });
+
+        expect(rootElement.children.length).toBe(0);
+
+        await act(async () => {
+            router.rootNode.getNodeByName('en.profile')!.updateComponent('alt', ({ children }) => <div id='profile'>{children}</div>);
+        });
+
+        getByText('Profile index');
+    });
 });
 
 const createRouter = (options: Partial<Options> = {}) => {
@@ -490,10 +535,6 @@ const createRouter = (options: Partial<Options> = {}) => {
     );
 };
 
-const PageContent = ({ name, children }: { name: string; children?: React.ReactNode }) => {
-    return <div>Page content of {name}</div>;
-};
-
 const createReactApp = (router: Router42<any, any>, Profile: React.ComponentType<any>) => {
     return (
         <RouterProvider router={router}>
@@ -512,22 +553,22 @@ const createReactApp = (router: Router42<any, any>, Profile: React.ComponentType
             <Route name={'*.index'}>
                 <section>
                     <h1>Main</h1>
-                    <PageContent name='index' />
+                    <div>Page content of index</div>
                 </section>
             </Route>
             <Route name={'*.auctions'}>
                 <section>
                     <h1>Auctions</h1>
-                    <PageContent name='auctions' />
+                    <div>Page content of Auctions</div>
                 </section>
             </Route>
             <Route name={'*.profile'}>
                 <Profile>
                     <Route name={'*.profile.index'}>
-                        <PageContent name='Profile index' />
+                        <div>Page content of Profile index</div>
                     </Route>
                     <Route name={'*.profile.auctions'}>
-                        <PageContent name='Auctions index' />
+                        <div>Page content of Auctions index</div>
                     </Route>
                 </Profile>
             </Route>

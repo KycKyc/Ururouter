@@ -4,6 +4,7 @@ export { RouterStateContext, RouterContext } from './context';
 // Components
 export { Link } from './components/Link';
 export { Route } from './components/Route';
+export { NodeComponent } from './components/NodeComponent';
 
 // Hocs
 export { withNode } from './hocs/withNode';
