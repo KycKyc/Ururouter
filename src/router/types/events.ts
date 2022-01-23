@@ -1,6 +1,9 @@
-import { NavigationOptions, State } from 'router/router';
+import type { NavigationOptions, State } from 'router/router';
 
-// Params
+//
+// Navigation events
+//
+
 export type EventParamsNavigation<NodeClass> = {
     fromState: State<NodeClass> | null;
     toState: State<NodeClass>;
@@ -14,12 +17,18 @@ export type EventParamsNavigation<NodeClass> = {
     error?: any;
 };
 
-// We do not use it anywhere right now.
-// reserved for future use, probably
-export type NodeEventParams = {
+export type EventCallbackNavigation<NodeClass> = (params: EventParamsNavigation<NodeClass>) => void;
+
+//
+// Node events
+//
+
+/**
+ * We do not have any particulare use of params in context of Node events\
+ * but this may be usefull in the future
+ */
+export type EventParamsNode = {
     [key: string]: any;
 };
 
-// Callbacks
-export type EventCallbackNavigation<NodeClass> = (params: EventParamsNavigation<NodeClass>) => void;
-export type NodeEventCallback = (params?: NodeEventParams) => void;
+export type EventCallbackNode = (params?: EventParamsNode) => void;

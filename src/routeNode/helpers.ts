@@ -1,7 +1,7 @@
 import { build } from 'search-params';
 import type { Params, Anchor } from 'types/base';
 import type { MatchResponse } from './matchChildren';
-import { BuildOptions, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
+import type { BuildOptions, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
 
 export const getPathFromNodes = (nodes: RouteNode[]): string | null => (nodes ? nodes.map((node) => node.path).join('') : null);
 

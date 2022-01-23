@@ -1,21 +1,27 @@
 import type { RouteNodeState } from 'routeNode';
-import { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params, Anchor } from 'types/base';
+import type { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params, Anchor } from 'types/base';
 import { BrowserHistory } from './browserHistory';
+import type { HistoryController, HistoryControllerConstructor } from './browserHistory';
 import { errorCodes, events } from './constants';
 import { NavigationError, RouterError } from './errors';
 import { generateId } from './helpers';
 import { Node, NodeInitParams } from './node';
 import type { PrefligthResult, OnEnterResult } from './node';
-import { DefaultEventNames } from './types';
+import { DefaultEventNames } from './types/base';
 import type { EventCallbackNavigation, EventParamsNavigation } from './types/events';
 
 export interface NavigationOptions {
-    /** Will trigger reactivation of `preflight` and `OnEnter` Node functions (you can think of this as `reload`),
-        then replace state in browserHistory */
+    /** Will trigger reactivation of `preflight` and `OnEnter` Node functions\
+     *  Then will replace current state in browserHistory
+     *
+     *  You can think of it almost as a "reload"
+     */
     replace?: boolean;
-    /** browserHistory opt, is navigation call was triggered by popState event ? */
+    /** Option for `browserHistory` controller\
+     *  Is this navigation call was triggered by popState event ? */
     popState?: boolean;
-    /** Force navigation even if states are equal, if used without replace will trigger only necessary preflight and OnEnter funcs (none?) and then will push a new browserHistory state */
+    /** Force navigation even if states are equal\
+     * if used without replace will trigger only necessary preflight and OnEnter funcs (none?) and then will push a new browserHistory state */
     force?: boolean;
 }
 
@@ -67,16 +73,6 @@ type NavigationResult<NodeClass> = {
     };
 };
 
-type HistoryControllerConstructor<NodeClass> = {
-    new (router: Router42<any, any>): HistoryController<NodeClass>;
-};
-interface HistoryController<NodeClass> {
-    start: () => void;
-    stop: () => void;
-    onTransitionSuccess: EventCallbackNavigation<NodeClass>;
-    getLocation: () => string;
-}
-
 export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<Dependencies>> {
     options: Options = {
         autoCleanUp: true,
@@ -108,7 +104,6 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     callbacks: { [key: string]: Function[] } = {};
 
     state: State<NodeClass> | null = null;
-    stateId = 0;
     started = false;
 
     rootNode: NodeClass;
@@ -148,7 +143,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
             if ((routes.name || '').length > 0 || (routes.path || '').length > 0) {
                 throw new RouterError(
                     errorCodes.ROUTER_INCORRECT_CONFIGS,
-                    'First node in a tree should have empty name and path, e.g. `new Route({children: [...]})` or `{children: [...]}`'
+                    'First node in a tree should have empty name and path, e.g. `new Node({children: [...]})` or `{children: [...]}`'
                 );
             }
         }
@@ -168,18 +163,6 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
             this.historyController = new BrowserHistory(this);
         }
     }
-
-    // static fromNode<Dependencies>(routes: NodeSignature<Dependencies> | NodeSignature<Dependencies>[], options?: Partial<Options>, dependencies?: Dependencies) {
-    //     return new this(routes);
-    // }
-
-    // static fromSignature<Dependencies>(
-    //     routes: NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
-    //     options?: Partial<Options>,
-    //     dependencies?: Dependencies
-    // ) {
-    //     return new this(routes, options, dependencies);
-    // }
 
     //
     // Events
@@ -202,6 +185,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     //
     // Routes
     //
+
     buildPath(name: string, params: Params = {}, anchor: Anchor = null) {
         name = this.wildcardFormat(name);
         let defaultParams = this.rootNode.getDefaultParams(name);
@@ -303,6 +287,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     //
     // Lifecycle
     //
+
     start(path?: string): Promise<NavigationResult<NodeClass>> {
         if (this.started) {
             throw new RouterError(errorCodes.ROUTER_ALREADY_STARTED, 'already started');
@@ -339,6 +324,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     //
     // Navigation
     //
+
     cancel() {
         this.transitionId += 1;
     }
@@ -358,6 +344,11 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         return this.navigate(nodeState?.name || path, { ...(nodeState?.params || {}), ...params }, anchor || nodeState?.anchor, options);
     }
 
+    /**
+     *
+     * @param name
+     * @returns
+     */
     wildcardFormat(name: string): string {
         if (name.indexOf('*') === -1) return name;
 
@@ -567,6 +558,8 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         let segmentName: string | null = null;
         for (let value of compBase) {
             segmentName = segmentName === null ? value : `${segmentName}.${value}`;
+            // TODO: add toNavigationOpts.force ?
+            // otherwise there will be empty `toActivate` and `toDeactivate`
             if (compTo.indexOf(value) === index && paramsAreEqual(segmentName) && (!toNavigationOpts.replace || toActivate[node].ignoreReplaceOpt)) {
                 let commonNode = toActivate.splice(node, 1)[0];
                 toDeactivate.splice(node, 1);

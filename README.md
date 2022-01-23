@@ -5,6 +5,7 @@
 ### To Do
 
 1. Better pathParser, strip down unnecessary code, introduce strickier standarts and get rid of all unnecessary conditions after that.
+2. Remove `strictTrailingSlash` have no use in terms of path matching.
 
 ## Router
 
@@ -16,7 +17,6 @@
 4. decode \\ encode params
 5. hash in the path, add new `hash` param to navigation call?
 6. console warnings\errors for 404 and other navigation events ?
-7. export type `Params`
 
 ## RouteNode
 

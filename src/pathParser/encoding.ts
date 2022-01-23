@@ -12,10 +12,9 @@
  * sub-delims  = "!" / "$" / "&" / "'" / "(" / ")"
               / "*" / "+" / "," / ";" / "="
  */
+import { URLParamsEncodingType } from 'types/base';
 
 const excludeSubDelimiters = /[^$+,;|:]/g;
-
-export type URLParamsEncodingType = 'default' | 'uriComponent' | 'none';
 
 export const encodeURIComponentExcludingSubDelims = (segment: string): string => segment.replace(excludeSubDelimiters, (match) => encodeURIComponent(match));
 

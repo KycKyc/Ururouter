@@ -1,6 +1,7 @@
-import { build as buildQueryParams, IOptions as QueryParamFormats, parse as parseQueryParams } from 'search-params';
+import { build as buildQueryParams, parse as parseQueryParams } from 'search-params';
 
-import { URLParamsEncodingType, decodeParam, encodeParam } from './encoding';
+import type { URLParamsEncodingType, TrailingSlashMode, QueryParamFormats } from 'types/base';
+import { decodeParam, encodeParam } from './encoding';
 import { defaultOrConstrained } from './rules';
 import tokenise, { Token } from './tokeniser';
 
@@ -42,19 +43,6 @@ export interface PathOptions {
      * https://github.com/troch/search-params#options
      */
     queryParamFormats?: QueryParamFormats;
-    /**
-     * Specifies the method used to encode URL parameters:
-     *   - `'default': `encodeURIComponent` and `decodeURIComponent`
-     *      are used but some characters to encode and decode URL parameters,
-     *      but some characters are preserved when encoding
-     *      (sub-delimiters: `+`, `:`, `'`, `!`, `,`, `;`, `'*'`).
-     *   - `'uriComponent'`: use `encodeURIComponent` and `decodeURIComponent`
-     *      for encoding and decoding URL parameters.
-     *   - `'uri'`: use `encodeURI` and `decodeURI for encoding and decoding
-     *      URL parameters.
-     *   - `'none'`: no encoding or decoding is performed
-     *   - `'legacy'`: the approach for version 5.x and below (not recoomended)
-     */
     urlParamsEncoding?: URLParamsEncodingType;
 }
 
@@ -62,10 +50,6 @@ export interface InternalPathOptions {
     queryParamFormats?: QueryParamFormats;
     urlParamsEncoding: URLParamsEncodingType;
 }
-
-const defaultOptions: InternalPathOptions = {
-    urlParamsEncoding: 'default',
-};
 
 export interface PathPartialTestOptions extends PathOptions {
     caseSensitive?: boolean;
@@ -77,14 +61,17 @@ export interface PathTestOptions extends PathOptions {
     strictTrailingSlash?: boolean;
 }
 
-export type trailingSlashMode = 'default' | 'never' | 'always';
 export interface PathBuildOptions extends PathOptions {
     ignoreConstraints?: boolean;
     ignoreSearch?: boolean;
-    trailingSlashMode?: trailingSlashMode;
+    trailingSlashMode?: TrailingSlashMode;
 }
 
 export type TestMatch<T extends Record<string, any> = Record<string, any>> = T | null;
+
+const defaultOptions: InternalPathOptions = {
+    urlParamsEncoding: 'default',
+};
 
 export class Path<T extends Record<string, any> = Record<string, any>> {
     public static createPath<T extends Record<string, any> = Record<string, any>>(path: string, options?: PathOptions) {

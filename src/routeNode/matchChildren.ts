@@ -1,7 +1,6 @@
 import { TestMatch } from 'pathParser';
-import type { trailingSlashMode as tSM } from 'pathParser';
 import { omit, parse } from 'search-params';
-import type { Anchor, Params } from 'types/base';
+import type { Anchor, Params, TrailingSlashMode } from 'types/base';
 import { MatchOptions, RouteNode } from './RouteNode';
 
 export interface MatchResponse {
@@ -34,7 +33,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
         for (let node of nodes.values()) {
             let match: TestMatch | null = null;
             let noChildren = node.nameMap.size === 0;
-            let trailingSlashMode: tSM = noChildren ? (strictTrailingSlash ? 'default' : 'never') : 'default';
+            let trailingSlashMode: TrailingSlashMode = noChildren ? (strictTrailingSlash ? 'default' : 'never') : 'default';
             if (consumed === '/') {
                 if (node.path[0] === '/' && path[0] !== '/') {
                     path = '/' + path;

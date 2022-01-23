@@ -1,9 +1,20 @@
 import type { Params, Anchor } from 'types/base';
-import { NavigationOptions, Router42, State } from './router';
+import type { Router42, State } from './router';
+import type { EventCallbackNavigation, EventParamsNavigation } from './types/events';
 
 interface BrowserState {}
 
-class BrowserHistory<Dependencies> {
+export type HistoryControllerConstructor<NodeClass> = {
+    new (router: Router42<any, any>): HistoryController<NodeClass>;
+};
+export interface HistoryController<NodeClass> {
+    start: () => void;
+    stop: () => void;
+    onTransitionSuccess: EventCallbackNavigation<NodeClass>;
+    getLocation: () => string;
+}
+
+class BrowserHistory<Dependencies> implements HistoryController<any> {
     router: Router42<Dependencies>;
     removePopStateListener: (() => void) | null;
 
@@ -83,7 +94,7 @@ class BrowserHistory<Dependencies> {
         }
     }
 
-    onTransitionSuccess({ fromState, toState, options }: { fromState: State<any> | null; toState: State<any>; options: NavigationOptions }) {
+    onTransitionSuccess({ fromState, toState, options }: EventParamsNavigation<any>) {
         const historyState = this.getState();
         const hasState = historyState !== null;
 

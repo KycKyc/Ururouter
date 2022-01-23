@@ -1103,7 +1103,7 @@ describe('RouteNode', function () {
                         children: [
                             createNode({
                                 name: 'reviews',
-                                path: '/reviews/',
+                                path: '/reviews',
                                 children: [createNode({ name: 'index', path: '/' }), createNode({ name: 'page', path: '/:page' })],
                             }),
                             createNode({ name: 'orders', path: '/orders/' }),
@@ -1116,16 +1116,23 @@ describe('RouteNode', function () {
             let result;
             // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
             // console.dir(tree, { depth: null, breakLength: 140 });
-            result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
             result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            result = tree.matchPath('/user/reviews/1');
+            console.dir(result, { depth: null, breakLength: 140 });
+            result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
+            console.dir(result, { depth: null, breakLength: 140 });
+            result = tree.matchPath('/user/reviews', { strictTrailingSlash: true });
+            console.dir(result, { depth: null, breakLength: 140 });
+            // result = tree.matchPath('/user/reviews/1');
             // console.dir(result, { depth: null, breakLength: 140 });
 
             let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
-            // console.dir(_path);
-            _path = tree.buildPath('user.reviews.index', {});
+            console.dir(_path);
+            _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'always' });
+            console.dir(_path);
+            _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
+            console.dir(_path);
+
+            // _path = tree.buildPath('user.reviews.index', {});
             // console.dir(_path);
         });
     });

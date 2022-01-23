@@ -1,3 +1,7 @@
+/**
+ * Generate id for state.meta
+ * @returns
+ */
 export function generateId() {
     return 'xxxx-yxxx'.replace(/[xy]/g, (c) => {
         let r = (Math.random() * 16) | 0,

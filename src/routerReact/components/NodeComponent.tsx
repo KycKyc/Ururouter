@@ -1,7 +1,7 @@
 import React from 'react';
 import { useRouteNode } from '../hooks/useRouteNode';
 
-interface Params {
+interface NodeComponentParams {
     node: string;
     component: string;
     children?: React.ReactNode;
@@ -10,7 +10,7 @@ interface Params {
 /**
  * Extract and render React component from RouteNode
  */
-export const NodeComponent = ({ node, component, children }: Params) => {
+export const NodeComponent = ({ node, component, children }: NodeComponentParams) => {
     const routeNode = useRouteNode(node);
     const Component = routeNode?.components[component];
 

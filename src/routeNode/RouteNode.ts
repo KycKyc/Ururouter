@@ -1,7 +1,6 @@
-import { IOptions as QueryParamFormats } from 'search-params';
-import { Path, URLParamsEncodingType } from '../pathParser';
-
-import type { Params, Anchor, TrailingSlashMode, QueryParamsMode } from '../types/base';
+import type { Params, Anchor, TrailingSlashMode, QueryParamsMode, QueryParamFormats } from 'types/base';
+import { Path } from '../pathParser';
+import type { URLParamsEncodingType } from '../pathParser';
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap, getDefaultParamsFromNodes } from './helpers';
 import matchChildren from './matchChildren';
 
@@ -36,18 +35,18 @@ export interface RouteNodeOptions {
     sort?: boolean;
 }
 
-export type BasicNodeInitParams = {
+export interface RouteNodeInitParams {
     name?: string;
     path?: string;
-    children?: BasicNodeInitParams[] | RouteNode[] | RouteNode;
+    children?: RouteNodeInitParams[] | RouteNode[] | RouteNode;
     options?: RouteNodeOptions;
     defaultParams?: Params;
-};
+}
 
 const trailingSlash = /(.+?)(\/)(\?.*$|$)/gim;
 
 export class RouteNode {
-    ['constructor']: new (signature: BasicNodeInitParams, parent?: RouteNode) => this;
+    ['constructor']: new (signature: RouteNodeInitParams, parent?: RouteNode) => this;
     name: string;
     treeNames: string[];
     path: string;
@@ -58,7 +57,7 @@ export class RouteNode {
     isRoot: boolean;
     defaultParams: Params = {};
 
-    constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: BasicNodeInitParams) {
+    constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: RouteNodeInitParams) {
         this.name = name;
         this.treeNames = [];
         this.absolute = /^~/.test(path);
@@ -96,7 +95,7 @@ export class RouteNode {
      * @param {boolean} sort: be careful with sort, without sorting router will not work correctly
      * @returns
      */
-    add(route: BasicNodeInitParams | BasicNodeInitParams[] | this | this[], sort: boolean = true): this {
+    add(route: RouteNodeInitParams | RouteNodeInitParams[] | this | this[], sort: boolean = true): this {
         if (route === undefined || route === null) {
             return this;
         }
@@ -247,6 +246,18 @@ export class RouteNode {
         this.masterNode.rebuildTreeNames();
     }
 
+    sortChildren() {
+        if (!this.nameMap.size) return;
+        this.nameMap = sortedNameMap(this.nameMap) as Map<string, this>;
+    }
+
+    sortDescendants() {
+        this.sortChildren();
+        for (let childNode of this.nameMap.values()) {
+            childNode.sortDescendants();
+        }
+    }
+
     private propagateMaster(node: this) {
         this.masterNode = node;
         for (let node of this.nameMap.values()) {
@@ -299,18 +310,6 @@ export class RouteNode {
         const nodesByName = this.getNodesByName(routeName);
 
         return nodesByName ? getDefaultParamsFromNodes(nodesByName) : {};
-    }
-
-    sortChildren() {
-        if (!this.nameMap.size) return;
-        this.nameMap = sortedNameMap(this.nameMap) as Map<string, this>;
-    }
-
-    sortDescendants() {
-        this.sortChildren();
-        for (let childNode of this.nameMap.values()) {
-            childNode.sortDescendants();
-        }
     }
 
     buildPath(name: string, params: Params = {}, anchor: Anchor = null, options: BuildOptions = {}): string {
@@ -398,4 +397,4 @@ export class RouteNode {
  * @param init
  * @returns RouteNode
  */
-export const createNode = <Augments>(init: BasicNodeInitParams & Augments) => new RouteNode(init) as RouteNode & Augments;
+export const createNode = <Augments>(init: RouteNodeInitParams & Augments) => new RouteNode(init) as RouteNode & Augments;
