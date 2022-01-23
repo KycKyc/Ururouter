@@ -388,9 +388,7 @@ describe('Path', () => {
     });
 
     describe('uriComponent encoding', () => {
-        const path = new Path('/:param', {
-            urlParamsEncoding: 'uri',
-        });
+        const path = new Path('/:param', {});
 
         it('should build with correct encoding', () => {
             expect(
