@@ -1,4 +1,4 @@
-import { RouteNode } from 'routeNode';
+import { RouteNode } from '../../routeNode';
 import { errorCodes, events } from '../constants';
 import { Redirect } from '../errors';
 import { Node, NodeInitParams } from '../node';

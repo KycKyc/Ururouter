@@ -1,4 +1,4 @@
-import type { RouteNodeState } from 'routeNode';
+import type { RouteNodeState } from '../routeNode';
 import type { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params, Anchor } from '../types/common';
 import { BrowserHistory } from './browserHistory';
 import type { HistoryController, HistoryControllerConstructor } from './browserHistory';

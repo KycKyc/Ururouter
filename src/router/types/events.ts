@@ -1,4 +1,4 @@
-import type { NavigationOptions, State } from 'router/router';
+import type { NavigationOptions, State } from '../router';
 
 //
 // Navigation events

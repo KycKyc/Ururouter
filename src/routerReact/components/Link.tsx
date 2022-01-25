@@ -1,5 +1,5 @@
 import React, { Component, HTMLAttributes, MouseEventHandler } from 'react';
-import { NavigationOptions } from 'router/router';
+import { NavigationOptions } from '../../router/router';
 import type { Params, Anchor } from '../../types/common';
 import { RouterStateContext } from '../context';
 
