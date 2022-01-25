@@ -12,7 +12,7 @@
  * sub-delims  = "!" / "$" / "&" / "'" / "(" / ")"
               / "*" / "+" / "," / ";" / "="
  */
-import { URLParamsEncodingType } from 'types/base';
+import { URLParamsEncodingType } from '../types/common';
 
 const excludeSubDelimiters = /[^$+,;|:]/g;
 

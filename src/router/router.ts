@@ -1,5 +1,5 @@
 import type { RouteNodeState } from 'routeNode';
-import type { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params, Anchor } from 'types/base';
+import type { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params, Anchor } from '../types/common';
 import { BrowserHistory } from './browserHistory';
 import type { HistoryController, HistoryControllerConstructor } from './browserHistory';
 import { errorCodes, events } from './constants';
@@ -14,7 +14,7 @@ export interface NavigationOptions {
     /** Will trigger reactivation of `preflight` and `OnEnter` Node functions\
      *  Then will replace current state in browserHistory
      *
-     *  You can think of it almost as a "reload"
+     *  You can also think of it as "reload" (probably)
      */
     replace?: boolean;
     /** Option for `browserHistory` controller\
@@ -43,14 +43,13 @@ export interface State<NodeClass> {
 }
 
 export interface Options {
-    /** route name of 404 page */
+    /** route name of 404 page, in case path wasn't found within node tree */
     notFoundRouteName?: string;
-    /** route name of default\fallback page, in case of undef route, alternative to 404, if 404 is disabled */
+    /** route name of default\fallback page, in case path wasn't found within node tree\
+     *  alternative to 404, if 404 wasn't defined.
+     */
     defaultRouteName?: string;
-    autoCleanUp: boolean;
     allowNotFound: boolean;
-    strongMatching: boolean;
-    rewritePathOnMatch: boolean;
 
     pathOptions: {
         trailingSlashMode: TrailingSlashMode;
@@ -75,10 +74,7 @@ type NavigationResult<NodeClass> = {
 
 export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<Dependencies>> {
     options: Options = {
-        autoCleanUp: true,
         allowNotFound: false,
-        strongMatching: true,
-        rewritePathOnMatch: true,
 
         pathOptions: {
             trailingSlashMode: 'default',
@@ -113,7 +109,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
 
     illegalChars = new RegExp(/[.*+?^${}()|[\]\\]/, 'g');
 
-    // Workaroung for TS bug: https://stackoverflow.com/questions/69019704/generic-that-extends-type-that-require-generic-type-inference-do-not-work/69028892#69028892
+    // Workaround for TS bug(?): https://stackoverflow.com/questions/69019704/generic-that-extends-type-that-require-generic-type-inference-do-not-work/69028892#69028892
     constructor(
         routes: NodeInitParams<Dependencies, Node<Dependencies>> | NodeInitParams<Dependencies, Node<Dependencies>>[],
         options?: Partial<Options>,
@@ -390,7 +386,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
         }
 
         if (!nodeState) {
-            // 404 was defined but wasn't found, and this is this.navigate(404) call already
+            // 404 was defined but wasn't found within the node tree, and this is this.navigate(404) call already
             if (name === this.options.notFoundRouteName && !nodeState) {
                 throw new NavigationError({
                     code: errorCodes.TRANSITION_CANCELLED,
@@ -398,11 +394,12 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
                 });
             }
 
-            // Navigate to 404, if set
+            // Navigate to 404, if set and not disabled
             if (this.options.allowNotFound && this.options.notFoundRouteName) {
                 return this.navigate(this.options.notFoundRouteName, { path: name }, null, { replace: true });
             }
 
+            // defaultRouteName was defined but wasn't found within the node tree, and this is this.navigate(defaultRouteName) call already
             if (name === this.options.defaultRouteName && !nodeState) {
                 throw new NavigationError({
                     code: errorCodes.TRANSITION_CANCELLED,
@@ -410,7 +407,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
                 });
             }
 
-            // Navigate to default route, if set, and if 404 is not set or disabled
+            // Navigate to default route, if set
             if (this.options.defaultRouteName) {
                 return this.navigate(this.options.defaultRouteName, {}, null, { replace: true });
             }

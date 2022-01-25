@@ -1,6 +1,6 @@
 import { TestMatch } from 'pathParser';
 import { omit, parse } from 'search-params';
-import type { Anchor, Params, TrailingSlashMode } from 'types/base';
+import type { Anchor, Params, TrailingSlashMode } from '../types/common';
 import { MatchOptions, RouteNode } from './RouteNode';
 
 export interface MatchResponse {

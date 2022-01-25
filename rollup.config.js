@@ -1,11 +1,14 @@
-import pluginNodeResolve from '@rollup/plugin-node-resolve';
-import pluginTypescript from 'rollup-plugin-ts';
+import babel from '@rollup/plugin-babel';
+import nodeResolve from '@rollup/plugin-node-resolve';
 import del from 'rollup-plugin-delete';
-import pkg from './package.json';
 import { terser } from 'rollup-plugin-terser';
+// import pluginTypescript from 'rollup-plugin-ts';
+import pkg from './package.json';
 
 const inputFileName = 'src/index.ts';
 const moduleName = pkg.name;
+
+const extensions = ['.js', '.ts', '.tsx', '.json'];
 
 const config = [
     {
@@ -17,7 +20,7 @@ const config = [
                 sourcemap: true,
                 format: 'umd',
                 esModule: false,
-                banner: '// => Router',
+                banner: '// => Router42',
                 exports: 'named',
                 globals: {
                     react: 'React',
@@ -29,7 +32,7 @@ const config = [
                 sourcemap: true,
                 format: 'umd',
                 esModule: false,
-                banner: '// => Router',
+                banner: '// => Router42',
                 plugins: [terser({ ecma: 8, safari10: true })],
                 exports: 'named',
                 globals: {
@@ -39,12 +42,16 @@ const config = [
         ],
         external: ['react'],
         plugins: [
-            pluginTypescript({
-                transpiler: 'babel',
-                tsconfig: 'tsconfig.prod.json',
+            babel({
+                include: 'src/**/*',
+                exclude: '**/node_modules/**',
+                babelHelpers: 'runtime',
+                extensions,
             }),
             del({ targets: 'dist/*' }),
-            pluginNodeResolve(),
+            nodeResolve({
+                extensions,
+            }),
         ],
     },
     {
@@ -63,12 +70,15 @@ const config = [
         ],
         external: ['react'],
         plugins: [
-            pluginTypescript({
-                transpiler: 'babel',
-                target: 'es6',
-                tsconfig: 'tsconfig.prod.json',
+            babel({
+                include: 'src/**/*',
+                exclude: '**/node_modules/**',
+                babelHelpers: 'runtime',
+                extensions,
             }),
-            pluginNodeResolve(),
+            nodeResolve({
+                extensions,
+            }),
         ],
     },
 ];

@@ -1,6 +1,6 @@
-import type { Params, Anchor, TrailingSlashMode, QueryParamsMode, QueryParamFormats } from 'types/base';
 import { Path } from '../pathParser';
 import type { URLParamsEncodingType } from '../pathParser';
+import type { Params, Anchor, TrailingSlashMode, QueryParamsMode, QueryParamFormats } from '../types/common';
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap, getDefaultParamsFromNodes } from './helpers';
 import matchChildren from './matchChildren';
 
@@ -43,7 +43,7 @@ export interface RouteNodeInitParams {
     defaultParams?: Params;
 }
 
-const trailingSlash = /(.+?)(\/)(\?.*$|$)/gim;
+const trailingSlashRex = /(.+?)(\/)(\?.*$|$)/gim;
 
 export class RouteNode {
     ['constructor']: new (signature: RouteNodeInitParams, parent?: RouteNode) => this;
@@ -53,8 +53,8 @@ export class RouteNode {
     absolute: boolean;
     parser: Path | null;
     nameMap: Map<string, this>;
-    masterNode: this;
-    isRoot: boolean;
+    private masterNode: this;
+    private isRoot: boolean;
     defaultParams: Params = {};
 
     constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: RouteNodeInitParams) {
@@ -157,8 +157,8 @@ export class RouteNode {
     private addRouteNode(node: this): this {
         // If node have trailing slash, remove it, cause parents can't have trailing slashes.
         // Only exception is `/` path
-        if (trailingSlash.test(this.path)) {
-            this.path = this.path.replace(trailingSlash, '$1$3');
+        if (trailingSlashRex.test(this.path)) {
+            this.path = this.path.replace(trailingSlashRex, '$1$3');
             this.parser = this.path ? new Path(this.path) : null;
         }
 
@@ -235,6 +235,10 @@ export class RouteNode {
         return this;
     }
 
+    /**
+     * Sort childen of this node
+     * @param deepSort - should we recursively sort children of childern?
+     */
     private reflow(deepSort = true) {
         if (deepSort) {
             this.sortDescendants();

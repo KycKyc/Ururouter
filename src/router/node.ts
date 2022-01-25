@@ -1,7 +1,7 @@
 import type React from 'react';
-import type { Params } from 'types/base';
 import { RouteNode } from '../routeNode';
 import type { RouteNodeOptions } from '../routeNode';
+import type { Params } from '../types/common';
 import { nodeEvents } from './constants';
 import type { State } from './router';
 import type { NodeDefaultEventNames } from './types/base';

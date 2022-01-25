@@ -1,15 +1,37 @@
+const runtimePkg = require('@babel/runtime/package.json');
+
 module.exports = (api) => {
-    api.cache(true);
+    api.cache(false);
     return {
         presets: [
             [
                 '@babel/preset-env',
                 {
+                    targets: {
+                        esmodules: true,
+                    },
+                    bugfixes: true,
+                    modules: false,
                     loose: true,
                 },
             ],
-            '@babel/react',
+            '@babel/preset-react',
         ],
-        plugins: [['@babel/plugin-proposal-class-properties', { loose: true }]],
+        plugins: [
+            [
+                '@babel/plugin-transform-typescript',
+                {
+                    allowDeclareFields: true,
+                    isTSX: true,
+                },
+            ],
+            [
+                '@babel/plugin-transform-runtime',
+                {
+                    version: runtimePkg.version,
+                },
+            ],
+            ['@babel/plugin-proposal-class-properties', { loose: true }],
+        ],
     };
 };

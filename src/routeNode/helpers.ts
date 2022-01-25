@@ -1,5 +1,5 @@
 import { build } from 'search-params';
-import type { Params, Anchor } from 'types/base';
+import type { Params, Anchor } from '../types/common';
 import type { MatchResponse } from './matchChildren';
 import type { BuildOptions, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
 
@@ -40,9 +40,6 @@ export const getMetaFromNodes = (nodes: RouteNode[]): RouteNodeStateMeta => {
 export const getDefaultParamsFromNodes = (nodes: RouteNode[]) => {
     return nodes.reduce<Record<string, any>>((params, node) => {
         for (let paramName in node.defaultParams) {
-            // if (params.hasOwnProperty(paramName) && (paramName in (node.parser?.queryParams ?? {}) || paramName in (node.parser?.urlParams ?? {}))) {
-            //     console.warn(`Duplicate default param was found: '${paramName}', please check your nodes, param will be overwritten!`);
-            // }
             params[paramName] = node.defaultParams[paramName];
         }
 

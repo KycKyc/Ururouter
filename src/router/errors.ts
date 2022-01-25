@@ -1,4 +1,4 @@
-import type { Params, Anchor } from 'types/base';
+import type { Params, Anchor } from '../types/common';
 import { errorCodes, events } from './constants';
 import type { DefaultErrorCodes, EventNames, ErrorCodes } from './types/base';
 

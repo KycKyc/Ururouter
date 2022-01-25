@@ -1,6 +1,6 @@
 import { build as buildQueryParams, parse as parseQueryParams } from 'search-params';
 
-import type { URLParamsEncodingType, TrailingSlashMode, QueryParamFormats } from 'types/base';
+import type { URLParamsEncodingType, TrailingSlashMode, QueryParamFormats } from '../types/common';
 import { decodeParam, encodeParam } from './encoding';
 import { defaultOrConstrained } from './rules';
 import tokenise, { Token } from './tokeniser';

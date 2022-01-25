@@ -1,4 +1,4 @@
-import type { Diff } from 'types/helpers';
+import type { Diff } from '../../types/helpers';
 import { errorCodes, events, nodeEvents } from '../constants';
 
 export type DefaultErrorCodes = typeof errorCodes[keyof typeof errorCodes];

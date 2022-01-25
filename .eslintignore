@@ -1,2 +1,4 @@
 #Files to not make eslint parse
 dist/*
+es/*
+esb/*

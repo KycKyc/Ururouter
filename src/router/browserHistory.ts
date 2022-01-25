@@ -1,4 +1,4 @@
-import type { Params, Anchor } from 'types/base';
+import type { Params, Anchor } from '../types/common';
 import type { Router42, State } from './router';
 import type { EventCallbackNavigation, EventParamsNavigation } from './types/events';
 
