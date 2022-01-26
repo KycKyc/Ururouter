@@ -44,7 +44,7 @@ describe('router42', () => {
             });
         };
 
-        expect(create).toThrow('First node in a tree should have empty name and path, e.g. `new Route({children: [...]})` or `{children: [...]}');
+        expect(create).toThrow('First node in a tree should have empty name and path, e.g. `new Node({children: [...]})` or `{children: [...]}');
     });
 
     it("shouldn't be allowed to start twice", async () => {

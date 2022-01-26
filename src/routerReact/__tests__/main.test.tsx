@@ -3,7 +3,6 @@
  */
 import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
 import React, { useMemo } from 'react';
-import { events } from 'router/constants';
 import { Node } from 'router/node';
 import { Router42, Options, State } from '../../router/router';
 import { Link } from '../components/Link';

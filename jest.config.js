@@ -5,4 +5,5 @@ module.exports = {
     roots: ['<rootDir>/src/'],
     collectCoverage: true,
     testTimeout: 20000,
+    coverageDirectory: 'coverage',
 };
