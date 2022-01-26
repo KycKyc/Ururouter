@@ -50,7 +50,6 @@ export type NodeInitParams<Dependencies, NodeClass> = {
 export class Node<Dependencies> extends RouteNode {
     preflight?: PreflightFn<Dependencies, this>;
     onEnter?: EnterFn<Dependencies, this>;
-    defaultParams: Params = {};
     ignoreReplaceOpt: boolean = false;
     components: { [key: string]: React.ComponentType<any> } = {};
     callbacks: { [key: string]: EventCallbackNode[] } = {};
