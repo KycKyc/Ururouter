@@ -444,25 +444,17 @@ describe('RouteNode', function () {
         });
     });
 
-    it('should match paths with optional trailing slashes', function () {
+    it('should match paths with and without trailing slashes', function () {
         let rootNode = getRoutes();
 
-        expect(rootNode.matchPath('/users/list/', { strictTrailingSlash: true })).toBeNull();
+        expect(withoutMeta(rootNode.matchPath('/users/list/'))).toEqual({ name: 'users.list', params: {}, anchor: null });
 
-        expect(withoutMeta(rootNode.matchPath('/users/list', { strictTrailingSlash: false }))).toEqual({ name: 'users.list', params: {}, anchor: null });
-
-        expect(withoutMeta(rootNode.matchPath('/users/list', { strictTrailingSlash: true }))).toEqual({ name: 'users.list', params: {}, anchor: null });
-
-        expect(withoutMeta(rootNode.matchPath('/users/list/', { strictTrailingSlash: false }))).toEqual({ name: 'users.list', params: {}, anchor: null });
+        expect(withoutMeta(rootNode.matchPath('/users/list'))).toEqual({ name: 'users.list', params: {}, anchor: null });
 
         rootNode = getRoutes(true);
-        expect(rootNode.matchPath('/users/list', { strictTrailingSlash: true })).toBeNull();
+        expect(withoutMeta(rootNode.matchPath('/users/list'))).toEqual({ name: 'users.list', params: {}, anchor: null });
 
-        expect(withoutMeta(rootNode.matchPath('/users/list', { strictTrailingSlash: false }))).toEqual({ name: 'users.list', params: {}, anchor: null });
-
-        expect(withoutMeta(rootNode.matchPath('/users/list/', { strictTrailingSlash: false }))).toEqual({ name: 'users.list', params: {}, anchor: null });
-
-        expect(withoutMeta(rootNode.matchPath('/users/list/', { strictTrailingSlash: true }))).toEqual({ name: 'users.list', params: {}, anchor: null });
+        expect(withoutMeta(rootNode.matchPath('/users/list/'))).toEqual({ name: 'users.list', params: {}, anchor: null });
 
         expect(withoutMeta(rootNode.matchPath('/'))).toEqual({
             name: 'index',
@@ -470,9 +462,7 @@ describe('RouteNode', function () {
             anchor: null,
         });
 
-        expect(withoutMeta(rootNode.matchPath('', { strictTrailingSlash: false }))).toEqual({ name: 'index', params: {}, anchor: null });
-
-        expect(rootNode.matchPath('', { strictTrailingSlash: true })).toBeNull();
+        expect(withoutMeta(rootNode.matchPath(''))).toEqual({ name: 'index', params: {}, anchor: null });
     });
 
     it('should match paths with optional trailing slashes and a non-empty root node', function () {
@@ -480,11 +470,11 @@ describe('RouteNode', function () {
 
         const state = { name: 'a', params: {}, anchor: null };
 
-        expect(withoutMeta(rootNode.matchPath('/', { strictTrailingSlash: true }))).toEqual(state);
+        expect(withoutMeta(rootNode.matchPath('/'))).toEqual(state);
 
-        expect(withoutMeta(rootNode.matchPath('/', { strictTrailingSlash: false }))).toEqual(state);
+        expect(withoutMeta(rootNode.matchPath('/'))).toEqual(state);
 
-        expect(withoutMeta(rootNode.matchPath('', { strictTrailingSlash: false }))).toEqual(state);
+        expect(withoutMeta(rootNode.matchPath(''))).toEqual(state);
     });
 
     it('should support query parameters with square brackets', function () {
@@ -1035,7 +1025,12 @@ describe('RouteNode', function () {
                 meta: { params: { en: {}, 'en.user': {}, 'en.user.default': {} } },
             });
 
-            expect(appNodes.matchPath('/user/orders/', { strictTrailingSlash: true })).toEqual(null);
+            expect(appNodes.matchPath('/user/orders/')).toEqual({
+                name: 'en.user.orders',
+                meta: { params: { en: {}, 'en.user': {}, 'en.user.orders': {} } },
+                anchor: null,
+                params: {},
+            });
         });
 
         it('should match path with lang prefix (ko-lang)', () => {
@@ -1059,12 +1054,6 @@ describe('RouteNode', function () {
                 anchor: null,
                 meta: { params: { ko: {}, 'ko.user': {}, 'ko.user.orders': {} } },
             });
-
-            expect(
-                appNodes.matchPath('/ko/user/orders/?page=1', {
-                    strictTrailingSlash: true,
-                })
-            ).toEqual(null);
         });
 
         it('find node', () => {
@@ -1104,7 +1093,12 @@ describe('RouteNode', function () {
                             createNode({
                                 name: 'reviews',
                                 path: '/reviews',
-                                children: [createNode({ name: 'index', path: '/' }), createNode({ name: 'page', path: '/:page' })],
+                                children: [
+                                    createNode({ name: 'index', path: '/' }),
+                                    createNode({ name: 'page', path: '/:page' }),
+                                    createNode({ name: 'test', path: '/test' }),
+                                    createNode({ name: 'testSlash', path: '/test/' }),
+                                ],
                             }),
                             createNode({ name: 'orders', path: '/orders/' }),
                         ],
@@ -1113,24 +1107,34 @@ describe('RouteNode', function () {
                 ],
             });
 
-            let result;
+            // let result;
             // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
             // console.dir(tree, { depth: null, breakLength: 140 });
-            result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
-            console.dir(result, { depth: null, breakLength: 140 });
-            result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
-            console.dir(result, { depth: null, breakLength: 140 });
-            result = tree.matchPath('/user/reviews', { strictTrailingSlash: true });
-            console.dir(result, { depth: null, breakLength: 140 });
+            // result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
+            // console.dir(result, { depth: null, breakLength: 140 });
+            // result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
+            // console.dir(result, { depth: null, breakLength: 140 });
+            // console.debug('strictTrailingSlash: false');
+            // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: false });
+            // console.dir(result, { depth: null, breakLength: 140 });
+            // result = tree.matchPath('/user/reviews/test/', { strictTrailingSlash: false });
+            // console.dir(result, { depth: null, breakLength: 140 });
+
+            // console.debug('strictTrailingSlash: true');
+            // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: true });
+            // console.dir(result, { depth: null, breakLength: 140 });
+            // result = tree.matchPath('/user/reviews');
+            // console.dir(result, { depth: null, breakLength: 140 });
             // result = tree.matchPath('/user/reviews/1');
             // console.dir(result, { depth: null, breakLength: 140 });
 
-            let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
-            console.dir(_path);
-            _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'always' });
-            console.dir(_path);
-            _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
-            console.dir(_path);
+            // console.debug('trailingSlashMode');
+            // let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
+            // console.dir(_path);
+            // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'always' });
+            // console.dir(_path);
+            // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
+            // console.dir(_path);
 
             // _path = tree.buildPath('user.reviews.index', {});
             // console.dir(_path);

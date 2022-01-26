@@ -13,7 +13,6 @@ export interface BuildOptions {
 
 export interface MatchOptions extends BuildOptions {
     caseSensitive?: boolean;
-    strictTrailingSlash?: boolean;
 }
 
 export interface RouteNodeStateMeta {
@@ -381,7 +380,7 @@ export class RouteNode {
     }
 
     matchPath(path: string, options: MatchOptions = {}): RouteNodeState | null {
-        if (path === '' && !options.strictTrailingSlash) {
+        if (path === '') {
             path = '/';
         }
 

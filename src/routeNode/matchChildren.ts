@@ -1,6 +1,6 @@
 import { TestMatch } from 'pathParser';
 import { omit, parse } from 'search-params';
-import type { Anchor, Params, TrailingSlashMode } from '../types/common';
+import type { Anchor, Params } from '../types/common';
 import { MatchOptions, RouteNode } from './RouteNode';
 
 export interface MatchResponse {
@@ -16,7 +16,7 @@ const splitPath = (path: string): [string, string, string | null] => {
 };
 
 const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: MatchOptions = {}) => {
-    const { queryParamsMode = 'default', strictTrailingSlash = false, caseSensitive = false } = options;
+    const { queryParamsMode = 'default', caseSensitive = false } = options;
     const currentMatch: MatchResponse = {
         nodes: [],
         params: {},
@@ -32,8 +32,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
         processNextNodes = false;
         for (let node of nodes.values()) {
             let match: TestMatch | null = null;
-            let noChildren = node.nameMap.size === 0;
-            let trailingSlashMode: TrailingSlashMode = noChildren ? (strictTrailingSlash ? 'default' : 'never') : 'default';
+            let haveChildrens = node.nameMap.size !== 0;
             if (consumed === '/') {
                 if (node.path[0] === '/' && path[0] !== '/') {
                     path = '/' + path;
@@ -47,7 +46,6 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
                 caseSensitive,
                 queryParamFormats: options.queryParamFormats,
                 urlParamsEncoding: options.urlParamsEncoding,
-                strictTrailingSlash,
             });
 
             if (match == null) continue;
@@ -60,7 +58,8 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
             consumed = node.parser!.build(match, {
                 ignoreSearch: true,
                 urlParamsEncoding: options.urlParamsEncoding,
-                trailingSlashMode,
+                // Probably shouldn't matter, user should have correct paths in a node tree, that means no trailing slashes for node with children (TODO: force it ?)
+                trailingSlashMode: haveChildrens ? 'default' : 'never',
             });
 
             // remove consumed segment from a path
@@ -68,14 +67,17 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
             path = path.slice(consumed.length);
             search = omit(search, node.parser!.queryParams, options.queryParamFormats).querystring;
 
-            if (!strictTrailingSlash && path === '/' && !/\/$/.test(consumed)) {
+            if (path === '/' && !/\/$/.test(consumed)) {
+                // 'path is `/` and consumed part didn't had `/` at the end, that means it's final node, just path had trailing slash'
                 path = '';
             }
 
-            if (!strictTrailingSlash && !noChildren && path === '') {
+            if (haveChildrens && path === '') {
+                // have childrens, but path is ``, assign `/` back to iterate through childrens and find {name:`...index`, path: '/'} children
                 path = '/';
             }
 
+            // console.debug('remaining path: ', path);
             // Fully matched, withdraw
             if (!path.length && !search.length) {
                 return currentMatch;
