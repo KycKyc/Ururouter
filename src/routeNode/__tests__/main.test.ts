@@ -1083,30 +1083,29 @@ describe('RouteNode', function () {
 
     describe('experiments', function () {
         it('reviews', () => {
-            let tree = createNode({
-                name: 'app',
-                children: [
-                    createNode({
-                        name: 'user',
-                        path: '/user',
-                        children: [
-                            createNode({
-                                name: 'reviews',
-                                path: '/reviews',
-                                children: [
-                                    createNode({ name: 'index', path: '/' }),
-                                    createNode({ name: 'page', path: '/:page' }),
-                                    createNode({ name: 'test', path: '/test' }),
-                                    createNode({ name: 'testSlash', path: '/test/' }),
-                                ],
-                            }),
-                            createNode({ name: 'orders', path: '/orders/' }),
-                        ],
-                    }),
-                    createNode({ name: 'orders', path: '/orders/' }),
-                ],
-            });
-
+            // let tree = createNode({
+            //     name: 'app',
+            //     children: [
+            //         createNode({
+            //             name: 'user',
+            //             path: '/user',
+            //             children: [
+            //                 createNode({
+            //                     name: 'reviews',
+            //                     path: '/reviews',
+            //                     children: [
+            //                         createNode({ name: 'index', path: '/' }),
+            //                         createNode({ name: 'page', path: '/:page' }),
+            //                         createNode({ name: 'test', path: '/test' }),
+            //                         createNode({ name: 'testSlash', path: '/test/' }),
+            //                     ],
+            //                 }),
+            //                 createNode({ name: 'orders', path: '/orders/' }),
+            //             ],
+            //         }),
+            //         createNode({ name: 'orders', path: '/orders/' }),
+            //     ],
+            // });
             // let result;
             // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
             // console.dir(tree, { depth: null, breakLength: 140 });
@@ -1119,7 +1118,6 @@ describe('RouteNode', function () {
             // console.dir(result, { depth: null, breakLength: 140 });
             // result = tree.matchPath('/user/reviews/test/', { strictTrailingSlash: false });
             // console.dir(result, { depth: null, breakLength: 140 });
-
             // console.debug('strictTrailingSlash: true');
             // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: true });
             // console.dir(result, { depth: null, breakLength: 140 });
@@ -1127,7 +1125,6 @@ describe('RouteNode', function () {
             // console.dir(result, { depth: null, breakLength: 140 });
             // result = tree.matchPath('/user/reviews/1');
             // console.dir(result, { depth: null, breakLength: 140 });
-
             // console.debug('trailingSlashMode');
             // let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
             // console.dir(_path);
@@ -1135,7 +1132,6 @@ describe('RouteNode', function () {
             // console.dir(_path);
             // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
             // console.dir(_path);
-
             // _path = tree.buildPath('user.reviews.index', {});
             // console.dir(_path);
         });
@@ -1192,6 +1188,16 @@ describe('RouteNode', function () {
 
         let result = tree.buildPath('user.reviews.index', { test: '1' }, 'anchor', { queryParamsMode: 'loose' });
         expect(result).toBe('/user/reviews/?test=1#anchor');
+    });
+
+    it('shoud throw if one root node add another root node that do not have any children', () => {
+        let tree = createNode({
+            name: '',
+        });
+
+        expect(() => {
+            tree.add({ name: '', path: '' });
+        }).toThrow("RouteNode.add() expects routes to have a name(not '') and a path, or at least have some children to steal");
     });
 });
 

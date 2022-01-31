@@ -197,11 +197,7 @@ export class RouteNode {
                     throw new Error(`Path "${node.path}" is already defined as children of this node("${this.name}"), will not overwrite`);
                 }
             }
-            // if (this.pathMap.has(route.path) && this.pathMap.get(route.path) !== route) {
-            //     throw new Error(`Path "${route.path}" is already defined in this node: "${this.name}", will not overwrite`);
-            // }
 
-            // if (this.nameMap.get(route.name) === route && this.pathMap.get(route.path) === route) {
             if (this.nameMap.get(node.name) === node) {
                 // Already defined, no point in redefining the same node on the same name and path
                 return this;
