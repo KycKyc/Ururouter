@@ -2,7 +2,6 @@ import babel from '@rollup/plugin-babel';
 import nodeResolve from '@rollup/plugin-node-resolve';
 import del from 'rollup-plugin-delete';
 import { terser } from 'rollup-plugin-terser';
-// import pluginTypescript from 'rollup-plugin-ts';
 import pkg from './package.json';
 
 const inputFileName = 'src/index.ts';

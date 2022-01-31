@@ -1,9 +1,12 @@
 {
-  "name": "router42",
-  "author": "KycKyc",
+  "name": "ururouter",
+  "author": "KycKyc <cycypyc@gmail.com> (https://github.com/KycKyc)",
+  "homepage": "https://github.com/KycKyc/Ururouter",
+  "repository": "github:KycKyc/Ururouter",
+  "bugs": "https://github.com/KycKyc/Ururouter/issues",
   "license": "MIT",
   "version": "0.1.0",
-  "description": "Route management pkg",
+  "description": "Simple and flexible React Router",
   "main": "dist/index.js",
   "unpkg": "dist/index.js",
   "typings": "es/index.d.ts",
@@ -15,6 +18,11 @@
       "import": "./es/index.js"
     }
   },
+  "keywords": [
+    "react",
+    "reactjs",
+    "router"
+  ],
   "files": [
     "dist",
     "es",
