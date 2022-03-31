@@ -5,7 +5,7 @@
   "repository": "github:KycKyc/Ururouter",
   "bugs": "https://github.com/KycKyc/Ururouter/issues",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Simple and flexible React Router",
   "main": "dist/index.js",
   "unpkg": "dist/index.js",
@@ -24,9 +24,9 @@
     "router"
   ],
   "files": [
-    "dist",
-    "es",
-    "esb"
+    "dist/**/*",
+    "es/**/*",
+    "esb/**/*"
   ],
   "devDependencies": {
     "@babel/cli": "^7.16.8",

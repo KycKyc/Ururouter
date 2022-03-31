@@ -76,6 +76,33 @@ describe('React', () => {
         expect(router.state?.anchor).toBe('test');
     });
 
+    it('multi routes component should work', async () => {
+        const router = createRouter();
+        await router.start('/');
+        const reactApp = createReactApp(router, ({ children }) => <div>{children}</div>);
+        let { getByText } = render(reactApp);
+
+        await act(async () => {
+            await router.navigate('*.auctions');
+        });
+
+        getByText('Common component for index and auctions');
+
+        await act(async () => {
+            await router.navigate('*.index');
+        });
+
+        getByText('Common component for index and auctions');
+
+        await act(async () => {
+            await router.navigate('*.profile.index', { name: 'KycKyc' });
+        });
+
+        expect(() => {
+            getByText('Common component for index and auctions');
+        }).toThrow();
+    });
+
     describe('Hooks', () => {
         it('useNode', async () => {
             const ProfileWithNode = ({ children }: { children: React.ReactNode }) => {
@@ -559,6 +586,11 @@ const createReactApp = (router: Router42<any, any>, Profile: React.ComponentType
                 <section>
                     <h1>Auctions</h1>
                     <div>Page content of Auctions</div>
+                </section>
+            </Route>
+            <Route name={['*.index', '*.auctions']}>
+                <section>
+                    <span>Common component for index and auctions</span>
                 </section>
             </Route>
             <Route name={'*.profile'}>

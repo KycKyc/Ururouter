@@ -5,7 +5,7 @@ import { useRouterState } from '../hooks/useRouterState';
 
 interface RouteParams {
     children?: React.ReactNode;
-    name: string;
+    name: string | string[];
     render?: (state: State<any> | null) => React.ReactNode;
 }
 
@@ -19,7 +19,15 @@ export const Route = ({ children, name }: RouteParams) => {
     let active = false;
     if (r.state) {
         for (let node of r.state.activeNodes) {
-            active = isNodeActive(name, node.treeNames);
+            if (Array.isArray(name)) {
+                for (let _n of name) {
+                    active = isNodeActive(_n, node.treeNames);
+                    if (active) break;
+                }
+            } else {
+                active = isNodeActive(name, node.treeNames);
+            }
+
             if (active) break;
         }
     }
@@ -30,7 +38,7 @@ export const Route = ({ children, name }: RouteParams) => {
 };
 
 interface RouteStateParams {
-    name: string;
+    name: string | string[];
     children?: (state: State<any> | null) => JSX.Element;
 }
 
@@ -44,7 +52,15 @@ export const RouteState = ({ children, name }: RouteStateParams) => {
     let active = false;
     if (r.state) {
         for (let node of r.state.activeNodes) {
-            active = isNodeActive(name, node.treeNames);
+            if (Array.isArray(name)) {
+                for (let _n of name) {
+                    active = isNodeActive(_n, node.treeNames);
+                    if (active) break;
+                }
+            } else {
+                active = isNodeActive(name, node.treeNames);
+            }
+
             if (active) break;
         }
     }
