@@ -76,7 +76,7 @@ describe('React', () => {
         expect(router.state?.anchor).toBe('test');
     });
 
-    it('multi routes component should work', async () => {
+    it('<Route>, multi routes component should work', async () => {
         const router = createRouter();
         await router.start('/');
         const reactApp = createReactApp(router, ({ children }) => <div>{children}</div>);
