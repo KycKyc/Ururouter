@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
+import type { Node } from '../router/node';
 import { useRouterState } from './hooks/useRouterState';
 
 /**
- * is node with given name active?
+ * determione if name is present inside array of names
  * @param name - looking for this name
  * @param names - list of known node names
  * @returns
  */
-export const isNodeActive = (name: string, names: string[]): boolean => {
+export const checkNames = (name: string, names: string[]): boolean => {
     if (name.indexOf('*') === -1) {
         return names.indexOf(name) !== -1;
     }
@@ -27,6 +28,31 @@ export const isNodeActive = (name: string, names: string[]): boolean => {
     }
 
     return false;
+};
+
+/**
+ * Helper fucntion.
+ * Finds out whether a node with the given name is currently active across given nodes, or not.
+ * @param name name of the node to check
+ * @param nodes list of currently active nodes
+ * @returns
+ */
+export const isNodeActive = (name: string | string[], nodes: Node<any>[]) => {
+    let active = false;
+    for (let node of nodes) {
+        if (Array.isArray(name)) {
+            for (let _n of name) {
+                active = checkNames(_n, node.treeNames);
+                if (active) break;
+            }
+        } else {
+            active = checkNames(name, node.treeNames);
+        }
+
+        if (active) break;
+    }
+
+    return active;
 };
 
 /**

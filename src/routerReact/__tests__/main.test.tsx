@@ -8,7 +8,8 @@ import { Router42, Options, State } from '../../router/router';
 import { Link } from '../components/Link';
 import { NodeComponent } from '../components/NodeComponent';
 import { Route, RouteState } from '../components/Route';
-import { isNodeActive } from '../helpers';
+import { Switch } from '../components/Switch';
+import { checkNames } from '../helpers';
 import { withNode } from '../hocs/withNode';
 import { withRouter } from '../hocs/withRouter';
 import { withRouterState } from '../hocs/withRouterState';
@@ -18,11 +19,13 @@ import { useRouterState } from '../hooks/useRouterState';
 import { RouterProvider } from '../provider';
 
 describe('React', () => {
-    it('isNodeActive func working properly', async () => {
-        expect(isNodeActive('*.index', ['en.inex', 'ko.index'])).toBeTruthy();
-        expect(isNodeActive('en.index', ['en.index', 'ko.index'])).toBeTruthy();
-        expect(isNodeActive('index', ['en.inex', 'ko.index'])).toBeFalsy();
-        expect(isNodeActive('ru.index', ['en.inex', 'ko.index'])).toBeFalsy();
+    it('`checkNames` func working properly', async () => {
+        expect(checkNames('*.index', ['en.inex', 'ko.index'])).toBeTruthy();
+        expect(checkNames('en.index', ['en.index', 'ko.index'])).toBeTruthy();
+        expect(checkNames('*', ['en.inex', 'ko.index'])).toBeTruthy();
+
+        expect(checkNames('index', ['en.inex', 'ko.index'])).toBeFalsy();
+        expect(checkNames('ru.index', ['en.inex', 'ko.index'])).toBeFalsy();
     });
 
     it('RouteState is working', async () => {
@@ -74,6 +77,66 @@ describe('React', () => {
 
         getByText('Page content of Auctions index');
         expect(router.state?.anchor).toBe('test');
+    });
+
+    it('<Switch> should work', async () => {
+        const router = createRouter();
+        await router.start('/');
+
+        const renderCounter = jest.fn();
+        const EverythingElse: React.FC = () => {
+            renderCounter();
+            return <div>Everything else</div>;
+        };
+
+        const reactApp = (
+            <RouterProvider router={router}>
+                <div>
+                    <Switch>
+                        <Route name='*.item'>Item</Route>
+                        <Route name='*'>
+                            <EverythingElse />
+                        </Route>
+                    </Switch>
+                </div>
+            </RouterProvider>
+        );
+
+        let { getByText } = render(reactApp);
+
+        // first render of `Everything else`
+        getByText('Everything else');
+
+        await act(async () => {
+            await router.navigate('*.item.index', { item: 'something' });
+        });
+
+        // Render of `item` node
+        getByText('Item');
+
+        await act(async () => {
+            await router.navigate('*.auctions.recent', { type: 'kek' });
+        });
+
+        // second render of `Everything else`
+        getByText('Everything else');
+
+        await act(async () => {
+            await router.navigate('*.auctions.search', { type: 'kek' });
+        });
+
+        // third render of `Everything else`
+        getByText('Everything else');
+
+        await act(async () => {
+            await router.navigate('*.auctions.index', { type: 'kek2' });
+        });
+
+        // fourth render of `Everything else`
+        getByText('Everything else');
+
+        // Total number of re-renders for `Everything else` should be 2
+        expect(renderCounter.mock.calls.length).toBe(2);
     });
 
     it('<Route>, multi routes component should work', async () => {
