@@ -25,8 +25,8 @@ jobs:
       - name: Install peer dependencies
         run: yarn prepare
         
-      - name: Run tests
-        run: yarn test
+      - name: Create a new build
+        run: yarn build
 
       - name: Version
         run: yarn version --new-version "${GITHUB_REF:11}" --no-git-tag-version

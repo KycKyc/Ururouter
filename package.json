@@ -5,7 +5,7 @@
   "repository": "github:KycKyc/Ururouter",
   "bugs": "https://github.com/KycKyc/Ururouter/issues",
   "license": "MIT",
-  "version": "0.3.0",
+  "version": "0.3.3",
   "description": "Simple and flexible React Router",
   "main": "dist/index.js",
   "unpkg": "dist/index.js",
