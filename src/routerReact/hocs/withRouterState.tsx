@@ -3,14 +3,14 @@ import type { Node } from '../../router/node';
 import type { Router42, State } from '../../router/router';
 import { useRouterState } from '../hooks/useRouterState';
 
-interface InjectedProps {
+export interface RouterStateProps {
     state: State<Node<any>> | null;
     router: Router42<any> | null;
 }
 
-export const withRouterState = <Props extends InjectedProps>(Component: React.ComponentType<Props>) => {
+export const withRouterState = <Props extends RouterStateProps>(Component: React.ComponentType<Props>) => {
     type ComponentInstance = typeof Component;
-    type PureProps = Omit<Props, keyof InjectedProps>;
+    type PureProps = Omit<Props, keyof RouterStateProps>;
     type ForwardedProps = PureProps & {
         forwardedRef: Ref<ComponentInstance>;
     };

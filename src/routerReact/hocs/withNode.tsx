@@ -2,15 +2,15 @@ import React, { forwardRef, Ref } from 'react';
 import type { Node } from '../../router/node';
 import { useRouteNode } from '../hooks/useRouteNode';
 
-interface InjectedProps {
+export interface NodeProps {
     node: Node<any> | null | undefined;
 }
 
 export const withNode =
     (nodeName: string) =>
-    <Props extends InjectedProps>(Component: React.ComponentType<Props>) => {
+    <Props extends NodeProps>(Component: React.ComponentType<Props>) => {
         type ComponentInstance = typeof Component;
-        type PureProps = Omit<Props, keyof InjectedProps>;
+        type PureProps = Omit<Props, keyof NodeProps>;
         type ForwardedProps = PureProps & {
             forwardedRef: Ref<ComponentInstance>;
         };

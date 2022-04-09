@@ -8,8 +8,13 @@ export { Switch } from './components/Switch';
 export { NodeComponent } from './components/NodeComponent';
 
 // Hocs
+export type { NodeProps } from './hocs/withNode';
 export { withNode } from './hocs/withNode';
+
+export type { RouterProps } from './hocs/withRouter';
 export { withRouter } from './hocs/withRouter';
+
+export type { RouterStateProps } from './hocs/withRouterState';
 export { withRouterState } from './hocs/withRouterState';
 
 // Hooks
