@@ -1,6 +1,6 @@
 import type React from 'react';
+import type { PathOptions } from '../pathParser';
 import { RouteNode } from '../routeNode';
-import type { RouteNodeOptions } from '../routeNode';
 import type { Params } from '../types/common';
 import { nodeEvents } from './constants';
 import type { State } from './router';
@@ -38,7 +38,8 @@ export type NodeInitParams<Dependencies, NodeClass> = {
     /** Called __sequentially__ for all nodes in the current transition call, and each after own node preflight function */
     onEnter?: EnterFn<Dependencies, NodeClass>;
     children?: NodeInitParams<Dependencies, NodeClass>[] | NodeClass[] | NodeClass;
-    options?: RouteNodeOptions;
+    pathOptions?: Partial<PathOptions>;
+    sort?: boolean;
     /** default url params for this node, you can also overwrite any parent node params if you want  */
     defaultParams?: Params;
     /** Ignore preflight and on onEnter functions in process of transition, even if navigation options.replace is set to `true` */

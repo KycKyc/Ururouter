@@ -86,7 +86,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.16.7",
-    "search-params": "^4.0.1"
+    "query-string": "^7.1.1"
   },
   "peerDependencies": {
     "react": "^17.0.2",

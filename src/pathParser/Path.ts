@@ -1,36 +1,30 @@
-import { build as buildQueryParams, parse as parseQueryParams } from 'search-params';
+import queryString from 'query-string';
+import type { ParseOptions } from 'query-string';
 
-import type { URLParamsEncodingType, TrailingSlashMode, QueryParamFormats } from '../types/common';
+import type { URLParamsEncodingType } from '../types/common';
 import { decodeParam, encodeParam } from './encoding';
 import { defaultOrConstrained } from './rules';
 import tokenise, { Token } from './tokeniser';
 
-export type { URLParamsEncodingType };
-
 const exists = (val: any) => val !== undefined && val !== null;
 
-const optTrailingSlash = (source: string, strictTrailingSlash: boolean) => {
-    if (strictTrailingSlash) {
-        return source;
-    }
-
-    if (source === '\\/') {
-        return source;
-    }
-
-    return source.replace(/\\\/$/, '') + '(?:\\/)?'; // need for testing of `/my-path/` path, when source is `/my-path` and trailingSlash is optional
+export const splitPath = (path: string): [string, string, string | null] => {
+    let [remaining, anchor] = path.split('#', 2);
+    let [base, search] = remaining.split('?', 2);
+    return [base, search || '', anchor || null];
 };
 
 const upToDelimiter = (source: string) => {
-    return /(\/)$/.test(source) ? source : source + '(\\/|\\?|\\.|;|$)';
+    return /(\/)$/.test(source) ? source : source + '(?:\\/|\\?|\\.|;|$)';
 };
 
-const appendQueryParam = (params: Record<string, any>, param: string, val = '') => {
+const appendQueryParam = (params: Record<string, any>, param: string, val: any = '') => {
     const existingVal = params[param];
 
     if (existingVal === undefined) {
         params[param] = val;
     } else {
+        // TODO: use cases? tests?
         params[param] = Array.isArray(existingVal) ? existingVal.concat(val) : [existingVal, val];
     }
 
@@ -38,40 +32,38 @@ const appendQueryParam = (params: Record<string, any>, param: string, val = '') 
 };
 
 export interface PathOptions {
-    /**
-     * Query parameters buiding and matching options, see
-     * https://github.com/troch/search-params#options
-     */
-    queryParamFormats?: QueryParamFormats;
-    urlParamsEncoding?: URLParamsEncodingType;
-}
-
-export interface InternalPathOptions {
-    queryParamFormats?: QueryParamFormats;
+    queryParamOptions: ParseOptions;
     urlParamsEncoding: URLParamsEncodingType;
 }
 
-export interface PathPartialTestOptions extends PathOptions {
-    caseSensitive?: boolean;
-    delimited?: boolean;
-}
-
-export interface PathTestOptions extends PathOptions {
+export interface PathTestOptions {
     caseSensitive?: boolean;
     strictTrailingSlash?: boolean;
+    strictQueryParams?: boolean;
 }
 
-export interface PathBuildOptions extends PathOptions {
+export interface PathBuildOptions {
     ignoreConstraints?: boolean;
     ignoreSearch?: boolean;
-    trailingSlashMode?: TrailingSlashMode;
 }
 
-export type TestMatch<T extends Record<string, any> = Record<string, any>> = T | null;
+export interface ParseResult {
+    match: {
+        path: string;
+        urlParams: Record<string, any>;
+        queryParams: Record<string, any>;
+    };
+    remains: {
+        path: string;
+        queryParams: Record<string, any>;
+    };
+}
 
-const defaultOptions: InternalPathOptions = {
-    urlParamsEncoding: 'default',
-};
+export interface BuildResult {
+    base: string;
+    query: string;
+    remainingParams: Record<string, any>;
+}
 
 export class Path<T extends Record<string, any> = Record<string, any>> {
     public static createPath<T extends Record<string, any> = Record<string, any>>(path: string, options?: PathOptions) {
@@ -84,47 +76,78 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
     public hasSpatParam: boolean;
     public hasMatrixParams: boolean;
     public hasQueryParams: boolean;
-    public options: InternalPathOptions;
     public spatParams: string[];
     public urlParams: string[];
     public queryParams: string[];
-    public params: string[];
     public source: string;
+    public trailingSlash: boolean;
+    public options: PathOptions = {
+        urlParamsEncoding: 'default',
+        queryParamOptions: {
+            sort: false,
+        },
+    };
 
-    constructor(path: string, options?: PathOptions) {
+    // TODO: We do not need this annymore?
+    private lockOptions = false;
+
+    // remove trailing slash of a path
+    // 'keke/'.replace(/(.+)\/$/, '$1')
+    // 'keke/?ololo=1'.replace(/(.+)\/\?/, '$1?')
+    // Or maybe just split it
+
+    constructor(path: string, options?: Partial<PathOptions>) {
         if (!path) {
             throw new Error('Missing path in Path constructor');
         }
 
-        this.path = path;
-        this.options = {
-            ...defaultOptions,
-            ...options,
-        };
+        let query: string = '';
+        let haveQueryRex = /\?(:?[A-Za-z0-9_:&]+$)/;
+        if (path.match(haveQueryRex)) {
+            [path, query] = path.split(haveQueryRex, 2);
+        }
 
+        // Detect trailling slash, remember it and remove from the path to simplify parsing
+        this.trailingSlash = false;
+        if (path.match(/(.*)\/$/)) {
+            path = path.replace(/(.+)\/$/, '$1');
+            this.trailingSlash = true;
+        }
+
+        if (!path.match(/^\//)) {
+            console.warn(`Path should have leading slash, i transformed it for you: '/${path}'`);
+            path = '/' + path;
+        }
+
+        // Parsing query params requirements
+        this.queryParams = query.split('&').filter((val) => val.length > 0);
+        this.hasQueryParams = query.length > 0;
+
+        // Parsing path and params inside it
+        this.path = path;
         this.tokens = tokenise(path);
 
         this.hasUrlParams = this.tokens.filter((t) => /^url-parameter/.test(t.type)).length > 0;
-
         this.hasSpatParam = this.tokens.filter((t) => /splat$/.test(t.type)).length > 0;
-
         this.hasMatrixParams = this.tokens.filter((t) => /matrix$/.test(t.type)).length > 0;
-
-        this.hasQueryParams = this.tokens.filter((t) => /^query-parameter/.test(t.type)).length > 0;
 
         // Extract named parameters from tokens
         this.spatParams = this.getParams('url-parameter-splat');
-        this.urlParams = this.getParams(/^url-parameter/);
-        // Query params
-        this.queryParams = this.getParams('query-parameter');
-        // All params
-        this.params = this.urlParams.concat(this.queryParams);
-        // Check if hasQueryParams
-        // Regular expressions for url part only (full and partial match)
-        this.source = this.tokens
-            .filter((t) => t.regex !== undefined)
-            .map((t) => t.regex!.source)
-            .join('');
+        this.urlParams = this.getParams(/^url-parameter/); // Will include spat-params as well
+
+        // Regular expressions to match given url (without querryParams)
+        this.source = this.tokens.map((token) => token.regex!.source).join('');
+
+        // Defining Options
+        if (options !== undefined) {
+            this.updateOptions(options);
+            this.lockOptions = true;
+        }
+    }
+
+    public updateOptions(options: Partial<PathOptions>, force: boolean = false) {
+        if (this.lockOptions && !force) return;
+        this.options = { ...this.options, ...options, ...{ queryParamOptions: { ...this.options.queryParamOptions, ...options.queryParamOptions } } };
     }
 
     public isQueryParam(name: string): boolean {
@@ -135,79 +158,62 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
         return this.spatParams.indexOf(name) !== -1;
     }
 
-    public test(path: string, opts?: PathTestOptions): TestMatch<T> {
-        const options = {
-            caseSensitive: false,
-            strictTrailingSlash: false,
-            ...this.options,
-            ...opts,
-        } as const;
+    public strictParse(
+        path: string,
+        { caseSensitive = false, strictTrailingSlash = false, strictQueryParams = false }: PathTestOptions = {}
+    ): ParseResult | null {
+        const result = this.parse(path, { caseSensitive });
 
-        const source = optTrailingSlash(this.source, options.strictTrailingSlash);
-        // Check if exact match
-        const match = this.urlTest(path, source + (this.hasQueryParams ? '(\\?.*$|$)' : '$'), options.caseSensitive, options.urlParamsEncoding);
+        // Not even a partial match
+        if (result == null) return null;
 
-        // If no match, or no query params, no need to go further
-        if (!match || !this.hasQueryParams) {
-            return match;
+        // Matched but there is still some remains left in the path
+        if (result.remains.path !== '/' && result.remains.path.length > 0) {
+            return null;
         }
 
-        // Extract query params
-        const queryParams = parseQueryParams(path, options.queryParamFormats);
-        const unexpectedQueryParams = Object.keys(queryParams).filter((p) => !this.isQueryParam(p));
-
-        if (unexpectedQueryParams.length === 0) {
-            // Extend url match
-            Object.keys(queryParams).forEach(
-                // @ts-ignore
-                (p) => (match[p] = (queryParams as any)[p])
-            );
-
-            return match;
+        // If trailing slash is strictly defined
+        if (strictTrailingSlash && ((result.remains.path === '/' && !this.trailingSlash) || (result.remains.path === '' && this.trailingSlash))) {
+            return null;
         }
 
-        return null;
+        // If some excessive querry params left and we do not want this, bail
+        if (strictQueryParams && Object.keys(result.remains.queryParams).length > 0) {
+            return null;
+        }
+
+        return result;
     }
 
-    public partialTest(path: string, opts?: PathTestOptions): TestMatch<T> {
-        const options = {
-            caseSensitive: false,
-            strictTrailingSlash: false,
-            ...this.options,
-            ...opts,
-        } as const;
+    public parse(path: string, { caseSensitive = false }: Pick<PathTestOptions, 'caseSensitive'> = {}): ParseResult | null {
+        let query: string;
+        [path, query] = splitPath(path);
 
         // Check if partial match (start of given path matches regex)
-        const source = upToDelimiter(optTrailingSlash(this.source, options.strictTrailingSlash));
-        const match = this.urlTest(path, source, options.caseSensitive, options.urlParamsEncoding);
+        const result = this.urlTest(path, upToDelimiter(this.source), caseSensitive);
 
-        if (!match) {
-            return match;
+        if (result == null) {
+            return null;
         }
 
-        if (!this.hasQueryParams) {
-            return match;
+        // if (!this.hasQueryParams) {
+        //     return result;
+        // }
+
+        const queryParams = queryString.parse(query, this.options.queryParamOptions);
+        for (let param of Object.keys(queryParams)) {
+            if (this.isQueryParam(param)) {
+                appendQueryParam(result.match.queryParams, param, queryParams[param]);
+            } else {
+                appendQueryParam(result.remains.queryParams, param, queryParams[param]);
+            }
         }
 
-        const queryParams = parseQueryParams(path, options.queryParamFormats);
-
-        Object.keys(queryParams)
-            .filter((p) => this.isQueryParam(p))
-            .forEach((p) => appendQueryParam(match, p, (queryParams as any)[p]));
-
-        return match;
+        return result;
     }
 
-    public build(params: T = {} as T, opts?: PathBuildOptions): string {
-        const options = {
-            ignoreConstraints: false,
-            ignoreSearch: false,
-            queryParamFormats: {},
-            ...this.options,
-            ...opts,
-        } as const;
-
-        let { trailingSlashMode = 'default' } = options;
+    public preBuild(params: T = {} as T, { ignoreConstraints = false, ignoreSearch = false }: PathBuildOptions = {}): BuildResult {
+        let remainingParams = { ...params };
         const encodedUrlParams = Object.keys(params)
             .filter((p) => !this.isQueryParam(p))
             .reduce<Record<string, any>>((acc, key) => {
@@ -221,9 +227,10 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
                 if (typeof val === 'boolean') {
                     acc[key] = val;
                 } else if (Array.isArray(val)) {
-                    acc[key] = val.map((v) => encodeParam(v, options.urlParamsEncoding, isSpatParam));
+                    // TODO: use cases? tests?
+                    acc[key] = val.map((v) => encodeParam(v, this.options.urlParamsEncoding, isSpatParam));
                 } else {
-                    acc[key] = encodeParam(val, options.urlParamsEncoding, isSpatParam);
+                    acc[key] = encodeParam(val, this.options.urlParamsEncoding, isSpatParam);
                 }
 
                 return acc;
@@ -236,79 +243,120 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
         }
 
         // Check constraints
-        if (!options.ignoreConstraints) {
+        if (!ignoreConstraints) {
             const constraintsPassed = this.tokens
                 .filter((t) => /^url-parameter/.test(t.type) && !/-splat$/.test(t.type))
-                .every((t) => new RegExp('^' + defaultOrConstrained(t.otherVal[0]) + '$').test(encodedUrlParams[t.val]));
+                .every((t) => {
+                    // console.debug(RegExp('^' + defaultOrConstrained(t.constrain[1]) + '$'));
+                    // console.debug(encodedUrlParams[t.paramName]);
+                    return new RegExp('^' + defaultOrConstrained(t.constrain[1]) + '$').test(encodedUrlParams[t.paramName]);
+                });
 
             if (!constraintsPassed) {
                 throw new Error(`Some parameters of '${this.path}' are of invalid format`);
             }
         }
 
-        const base = this.tokens
-            .filter((t, i, a) => {
-                if (trailingSlashMode === 'never' && i === a.length - 1 && t.type === 'delimiter') {
-                    return false;
+        let base = this.tokens
+            .map((token, i, a) => {
+                if (token.type === 'url-parameter-matrix') {
+                    delete remainingParams[token.paramName];
+                    return `;${token.paramName}=${encodedUrlParams[token.paramName]}`;
                 }
 
-                return /^query-parameter/.test(t.type) === false;
-            })
-            .map((t, i, a) => {
-                if (t.type === 'url-parameter-matrix') {
-                    return `;${t.val}=${encodedUrlParams[t.val[0]]}`;
+                if (/^url-parameter/.test(token.type)) {
+                    delete remainingParams[token.paramName];
+                    return encodedUrlParams[token.paramName];
                 }
 
-                if (/^url-parameter/.test(t.type)) {
-                    return encodedUrlParams[t.val[0]];
-                }
-
-                if (trailingSlashMode === 'always' && i === a.length - 1 && t.type !== 'delimiter') {
-                    return t.match + '/';
-                }
-
-                return t.match;
+                return token.match;
             })
             .join('');
 
-        if (options.ignoreSearch) {
-            return base;
+        if (this.trailingSlash) {
+            base += '/';
+        }
+
+        if (ignoreSearch) {
+            return {
+                base,
+                query: '',
+                remainingParams,
+            };
         }
 
         const searchParams = this.queryParams
             .filter((p) => Object.keys(params).indexOf(p) !== -1)
             .reduce<Record<string, any>>((sparams, paramName) => {
+                delete remainingParams[paramName];
                 sparams[paramName] = params[paramName];
                 return sparams;
             }, {});
 
-        const searchPart = buildQueryParams(searchParams, options.queryParamFormats);
+        const searchPart = queryString.stringify(searchParams, this.options.queryParamOptions);
 
-        return searchPart ? base + '?' + searchPart : base;
+        return {
+            base,
+            query: searchPart,
+            remainingParams,
+        };
+    }
+
+    public build(params: T = {} as T, options: PathBuildOptions = {}): string {
+        let result = this.preBuild(params, options);
+        return result.query ? result.base + '?' + result.query : result.base;
     }
 
     private getParams(type: string | RegExp): string[] {
         const predicate = type instanceof RegExp ? (t: Token) => type.test(t.type) : (t: Token) => t.type === type;
 
-        return this.tokens.filter(predicate).map((t) => t.val[0]);
+        return this.tokens.filter(predicate).map((t) => t.paramName);
     }
 
-    private urlTest(path: string, source: string, caseSensitive: boolean, urlParamsEncoding: URLParamsEncodingType): TestMatch<T> {
+    private urlTest(path: string, source: string, caseSensitive: boolean): ParseResult | null {
+        // TODO: merge wiith this.parse
         const regex = new RegExp('^' + source, caseSensitive ? '' : 'i');
         const match = path.match(regex);
+
         if (!match) {
             return null;
         }
 
+        let matchBase = match[0].replace(/\/$/, '');
+
         if (!this.urlParams.length) {
-            return {} as T;
+            return {
+                match: {
+                    path: matchBase,
+                    urlParams: {},
+                    queryParams: {},
+                },
+                remains: {
+                    path: path.replace(matchBase, ''),
+                    queryParams: {},
+                },
+            };
         }
 
         // Reduce named params to key-value pairs
-        return match.slice(1, this.urlParams.length + 1).reduce<Record<string, any>>((params, m, i) => {
-            params[this.urlParams[i]] = decodeParam(m, urlParamsEncoding);
+        let matchUrlParams = match.slice(1).reduce<Record<string, any>>((params, m, i) => {
+            params[this.urlParams[i]] = decodeParam(m, this.options.urlParamsEncoding);
             return params;
-        }, {}) as T;
+        }, {});
+
+        // console.debug(matchUrlParams);
+
+        return {
+            match: {
+                path: matchBase,
+                urlParams: matchUrlParams,
+                queryParams: {},
+            },
+            remains: {
+                path: path.replace(matchBase, ''),
+                queryParams: {},
+            },
+        };
     }
 }
 

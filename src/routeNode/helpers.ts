@@ -1,4 +1,4 @@
-import { build } from 'search-params';
+import queryString from 'query-string';
 import type { Params, Anchor } from '../types/common';
 import type { MatchResponse } from './matchChildren';
 import type { BuildOptions, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
@@ -70,61 +70,38 @@ export const buildStateFromMatch = (match: MatchResponse): RouteNodeState | null
 
 export const buildPathFromNodes = (nodes: RouteNode[], params: Params = {}, anchor: Anchor = null, options: BuildOptions = {}) => {
     const { queryParamsMode = 'default', trailingSlashMode = 'default' } = options;
-    const searchParams: string[] = [];
-    const nonSearchParams: string[] = [];
 
+    let _path: string[] = [];
+    let _search: string[] = [];
     for (const node of nodes) {
         const { parser } = node;
-
-        if (parser) {
-            searchParams.push(...parser.queryParams);
-            nonSearchParams.push(...parser.urlParams);
-            nonSearchParams.push(...parser.spatParams);
-        }
-    }
-
-    if (queryParamsMode === 'loose') {
-        const extraParams = Object.keys(params).reduce<string[]>(
-            (acc, p) => (searchParams.indexOf(p) === -1 && nonSearchParams.indexOf(p) === -1 ? acc.concat(p) : acc),
-            []
-        );
-
-        searchParams.push(...extraParams);
-    }
-
-    const searchParamsObject = searchParams.reduce<Params>((acc, paramName) => {
-        if (Object.keys(params).indexOf(paramName) !== -1) {
-            acc[paramName] = params[paramName];
+        if (parser == null) {
+            continue;
         }
 
-        return acc;
-    }, {});
+        let result = parser.preBuild(params);
+        _path.push(result.base);
+        if (result.query) {
+            _search.push(result.query);
+        }
 
-    const searchPart = build(searchParamsObject, options.queryParamFormats);
+        params = result.remainingParams;
+    }
 
-    const path = nodes
-        .reduce<string>((path, node) => {
-            const nodePath =
-                node.parser?.build(params, {
-                    ignoreSearch: true,
-                    queryParamFormats: options.queryParamFormats,
-                    urlParamsEncoding: options.urlParamsEncoding,
-                }) ?? '';
+    if (queryParamsMode === 'default' && Object.keys(params).length > 0) {
+        _search.push(queryString.stringify(params, { sort: false }));
+    }
 
-            return node.absolute ? nodePath : path + nodePath;
-        }, '')
-        // remove repeated slashes
-        .replace(/\/\/{1,}/g, '/');
-
-    let finalPath = path;
+    let path = _path.join('').replace(/\/\/{1,}/g, '/');
+    let search = _search.join('&');
 
     if (trailingSlashMode === 'always') {
-        finalPath = /\/$/.test(path) ? path : `${path}/`;
+        path = /\/$/.test(path) ? path : `${path}/`;
     } else if (trailingSlashMode === 'never' && path !== '/') {
-        finalPath = /\/$/.test(path) ? path.slice(0, -1) : path;
+        path = /\/$/.test(path) ? path.slice(0, -1) : path;
     }
 
-    return finalPath + (searchPart ? '?' + searchPart : '') + (anchor ? '#' + anchor : '');
+    return path + (search ? '?' + search : '') + (anchor ? '#' + anchor : '');
 };
 
 export const sortedNameMap = (originalMap: Map<string, RouteNode>): Map<string, RouteNode> => {

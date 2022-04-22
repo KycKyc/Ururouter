@@ -1,39 +1,48 @@
 import rules from './rules';
 
 export interface Token {
+    /**
+     * like: `url-parameter` | `url-parameter-splat` | etc.
+     */
     type: string;
+    /**
+     *  String that shat was matched token regex.
+     *  like for `/item/:whatever`, matches will be: `/`, `item`, `/`, `:whatever`
+     */
     match: string;
-    val: any;
-    otherVal: any;
+    // Param name
+    paramName: string;
+    /** Constrain of param, defined as annother regex */
+    constrain: string[];
     regex?: RegExp;
 }
 
-const tokenise = (str: string, tokens: Token[] = []): Token[] => {
-    // Look for a matching rule
-    const matched = rules.some((rule) => {
-        const match = str.match(rule.pattern);
-        if (!match) {
-            return false;
+const tokenise = (str: string): Token[] => {
+    let tokens: Token[] = [];
+    // console.debug(`Tokenize this: ${str}`);
+    while (str.length > 0) {
+        let segmentMatched = false;
+        for (let rule of rules) {
+            // console.debug(str);
+            let match = str.match(rule.pattern);
+            if (!match) continue;
+            segmentMatched = true;
+            // console.debug(match);
+            tokens.push({
+                type: rule.type,
+                match: match[0],
+                paramName: match.slice(1, 2)[0],
+                constrain: match.slice(2),
+                regex: rule.regex instanceof Function ? rule.regex(match) : rule.regex,
+            });
+
+            str = str.substring(match[0].length);
+            break;
         }
 
-        tokens.push({
-            type: rule.name,
-            match: match[0],
-            val: match.slice(1, 2),
-            otherVal: match.slice(2),
-            regex: rule.regex instanceof Function ? rule.regex(match) : rule.regex,
-        });
-
-        if (match[0].length < str.length) {
-            tokens = tokenise(str.substr(match[0].length), tokens);
+        if (!segmentMatched) {
+            throw new Error(`Could not parse path '${str}'`);
         }
-
-        return true;
-    });
-
-    // If no rules matched, throw an error (possible malformed path)
-    if (!matched) {
-        throw new Error(`Could not parse path '${str}'`);
     }
 
     return tokens;
