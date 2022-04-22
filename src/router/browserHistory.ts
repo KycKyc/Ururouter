@@ -94,17 +94,17 @@ class BrowserHistory<Dependencies> implements HistoryController<any> {
         }
     }
 
-    onTransitionSuccess({ fromState, toState, options }: EventParamsNavigation<any>) {
+    onTransitionSuccess({ toState, options }: EventParamsNavigation<any>) {
+        // Bail if this navigation was triggered by popState event
+        if (options.popState) return;
+
         const historyState = this.getState();
         const hasState = historyState !== null;
 
         // const statesAreEqual = fromState !== null && this.router.areStatesEqual(fromState, toState, false);
         const replace = options.replace || !hasState; // || statesAreEqual;
-        let url = this.router.buildPath(toState.name, toState.params, toState.anchor);
 
-        if (!options.popState) {
-            this.updateState(toState, url, replace);
-        }
+        this.updateState(toState, toState.path, replace);
     }
 }
 

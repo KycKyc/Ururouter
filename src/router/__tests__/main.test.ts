@@ -744,7 +744,7 @@ describe('router42', () => {
             // First history repolace call, router start.
             //
             // State
-            expect(historyReplaceSpy.mock.calls[0][0]).toMatchObject({ name: 'en.index', params: {}, path: '/', anchor: 'test' });
+            expect(historyReplaceSpy.mock.calls[0][0]).toMatchObject({ name: 'en.index', params: {}, path: '/#test', anchor: 'test' });
             // Title
             expect(historyReplaceSpy.mock.calls[0][1]).toBe('');
             // Path
@@ -757,7 +757,7 @@ describe('router42', () => {
             expect(historyPushSpy.mock.calls[0][0]).toMatchObject({
                 name: 'en.profile.index',
                 params: { name: 'KycKyc' },
-                path: '/profile/KycKyc/',
+                path: '/profile/KycKyc/#test-2',
                 anchor: 'test-2',
             });
 
@@ -781,7 +781,13 @@ describe('router42', () => {
 
             const router = createRouter();
             let result = await router.start();
-            expect(result.payload.toState).toMatchObject({ name: 'en.profile.index', path: '/profile/kyckyc/', anchor: 'anchor', params: { kek: 'w' } });
+            expect(result.payload.toState).toMatchObject({
+                name: 'en.profile.index',
+                path: '/profile/kyckyc/?kek=w#anchor',
+                anchor: 'anchor',
+                params: { kek: 'w' },
+            });
+
             windowSpy.mockRestore();
         });
 
@@ -799,7 +805,7 @@ describe('router42', () => {
                 setTimeout(() => {
                     expect(router.state!.name).toBe('en.profile.auctions');
                     expect(router.state!.params).toEqual({ name: 'kyckyc' });
-                    expect(router.state!.path).toBe('/profile/kyckyc/auctions');
+                    expect(router.state!.path).toBe('/profile/kyckyc/auctions#test');
                     expect(router.state!.anchor).toBe('test');
                     fulfill();
                 }, 200);

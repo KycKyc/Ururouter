@@ -1,3 +1,4 @@
+import queryString from 'query-string';
 import { Path } from '../index';
 
 describe('Path', () => {
@@ -24,23 +25,39 @@ describe('Path', () => {
         expect(Path.createPath('/users')).toBeDefined();
     });
 
+    it('should warn about incorrect path format', () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const path = Path.createPath('users');
+        expect(warn).toBeCalledWith("Path should have leading slash, i transformed it for you: '/users'");
+        expect(path.path).toBe('/users');
+    });
+
+    it('Should not mmatch if patch is not fully matched', () => {
+        const path = new Path('/user');
+        expect(path.strictParse('/user/whatever')).toBeNull();
+    });
+
     it('should match and build paths with url parameters', () => {
         const path = new Path('/users/profile/:id-:id2.html');
         // Successful match & partial match
-        expect(path.test('/users/profile/123-abc.html')).toEqual({
-            id: '123',
-            id2: 'abc',
+        expect(path.strictParse('/users/profile/123-abc.html')).toMatchObject({
+            match: {
+                urlParams: {
+                    id: '123',
+                    id2: 'abc',
+                },
+            },
         });
 
-        expect(path.partialTest('/users/profile/123-abc.html?what')).toEqual({
-            id: '123',
-            id2: 'abc',
+        expect(path.parse('/users/profile/123-abc.html?what')).toMatchObject({
+            match: {
+                urlParams: { id: '123', id2: 'abc' },
+            },
         });
 
         // Unsuccessful match
-        expect(path.test('/users/details/123-abc')).toBeNull();
-        expect(path.test('/users/details/123-abc.html')).toBeNull();
-        expect(path.test('/users/profile/123-abc.html?what')).toBeNull();
+        expect(path.strictParse('/users/details/123-abc')).toBeNull();
+        expect(path.strictParse('/users/details/123-abc.html')).toBeNull();
 
         expect(path.build({ id: '123', id2: 'abc' })).toBe('/users/profile/123-abc.html');
 
@@ -49,42 +66,86 @@ describe('Path', () => {
         }).toThrow("Cannot build path: '/users/profile/:id-:id2.html' requires missing parameters { id2 }");
     });
 
+    it('should ignore undefined url-param', () => {
+        const path = new Path('/:kek/users?offset&limit');
+
+        expect(path.build({ lol: undefined, kek: 12, offset: 31, limit: undefined })).toBe('/12/users?offset=31');
+    });
+
+    it('bool in url-params should work', () => {
+        const path = new Path('/:kek/users?offset&limit');
+        expect(path.build({ kek: true })).toBe('/true/users');
+    });
+
+    it('should add trailing slash', () => {
+        const path = new Path('/:kek/users/');
+        expect(path.build({ kek: true })).toBe('/true/users/');
+    });
+
     it('should match and build paths with query parameters', () => {
         const path = new Path('/users?offset&limit', {
-            queryParamFormats: { booleanFormat: 'string' },
+            queryParamOptions: { parseBooleans: true },
         });
 
         // Successful match & partial match
-        expect(path.test('/users?offset=31&limit=15')).toEqual({
-            offset: '31',
-            limit: '15',
+        expect(path.strictParse('/users?offset=31&limit=15')).toMatchObject({
+            match: {
+                queryParams: {
+                    offset: '31',
+                    limit: '15',
+                },
+            },
         });
 
-        expect(path.test('/users?offset=31&offset=30&limit=15')).toEqual({
-            offset: ['31', '30'],
-            limit: '15',
+        expect(path.strictParse('/users?offset=31&offset=30&limit=15')).toMatchObject({
+            match: {
+                queryParams: { offset: ['31', '30'], limit: '15' },
+            },
         });
 
-        expect(path.test('/users?offset=1&limit=15')).toEqual({
-            offset: '1',
-            limit: '15',
+        expect(path.strictParse('/users?offset=1&limit=15')).toMatchObject({
+            match: {
+                queryParams: { offset: '1', limit: '15' },
+            },
         });
 
-        expect(path.test('/users?limit=15')).toEqual({ limit: '15' });
-        expect(path.test('/users?limit=15')).toEqual({ limit: '15' });
-        expect(path.partialTest('/users?offset=true&limits=1')).toEqual({
-            offset: true,
+        expect(path.strictParse('/users?limit=15')).toMatchObject({
+            match: {
+                queryParams: { limit: '15' },
+            },
         });
 
-        expect(path.partialTest('/users?offset=1&offset=2%202&limits=1')).toEqual({
-            offset: ['1', '2 2'],
+        expect(path.parse('/users?offset=true&limits=1')).toMatchObject({
+            match: {
+                queryParams: {
+                    offset: true,
+                },
+            },
+            remains: {
+                queryParams: {
+                    limits: '1',
+                },
+            },
         });
 
-        expect(path.partialTest('/users')).toEqual({});
+        expect(path.parse('/users?offset=1&offset=2%202&limits=1')).toMatchObject({
+            match: {
+                queryParams: {
+                    offset: ['1', '2 2'],
+                },
+            },
+            remains: {
+                queryParams: {
+                    limits: '1',
+                },
+            },
+        });
+
+        expect(path.parse('/users')).toMatchObject({ match: { path: '/users' } });
 
         // Unsuccessful match
-        expect(path.test('/users?offset=31&order=asc')).toBeNull();
-        expect(path.test('/users?offset=31&limit=10&order=asc')).toBeNull();
+        expect(path.strictParse('/users?offset=31&order=asc', { strictQueryParams: true })).toBeNull();
+        expect(path.strictParse('/users?offset=31&limit=10&order=asc', { strictQueryParams: true })).toBeNull();
 
         expect(path.build({ offset: 31, limit: '15 15' })).toBe('/users?offset=31&limit=15%2015');
 
@@ -104,53 +165,94 @@ describe('Path', () => {
 
     it('should match and build paths of query parameters with square brackets', () => {
         const path = new Path('/users?offset&limit', {
-            queryParamFormats: { arrayFormat: 'brackets' },
+            queryParamOptions: { arrayFormat: 'bracket' },
         });
 
         expect(path.build({ offset: 31, limit: ['15'] })).toBe('/users?offset=31&limit[]=15');
 
         expect(path.build({ offset: 31, limit: ['15', '16'] })).toBe('/users?offset=31&limit[]=15&limit[]=16');
 
-        expect(path.test('/users?offset=31&limit[]=15')).toEqual({
-            offset: '31',
-            limit: ['15'],
+        expect(path.strictParse('/users?offset=31&limit[]=15')).toMatchObject({
+            match: {
+                queryParams: {
+                    offset: '31',
+                    limit: ['15'],
+                },
+            },
         });
 
-        expect(path.test('/users?offset=31&limit[]=15&limit[]=16')).toEqual({
-            offset: '31',
-            limit: ['15', '16'],
+        expect(path.strictParse('/users?offset=31&limit[]=15&limit[]=16')).toMatchObject({
+            match: {
+                queryParams: {
+                    offset: '31',
+                    limit: ['15', '16'],
+                },
+            },
         });
     });
 
     it('should match and build paths with url and query parameters', () => {
-        const path = new Path('/users/profile/:id-:id2?:id3');
+        const path = new Path('/users/profile/:id-:id2?id3');
         expect(path.hasQueryParams).toBe(true);
         // Successful match & partial match
-        expect(path.test('/users/profile/123-456?id3=789')).toEqual({
-            id: '123',
-            id2: '456',
-            id3: '789',
+        expect(path.strictParse('/users/profile/123-456?id3=789')).toMatchObject({
+            match: {
+                urlParams: {
+                    id: '123',
+                    id2: '456',
+                },
+                queryParams: { id3: '789' },
+            },
         });
 
-        expect(path.partialTest('/users/profile/123-456')).toEqual({
-            id: '123',
-            id2: '456',
+        expect(path.parse('/users/profile/123-456')).toMatchObject({
+            match: {
+                urlParams: { id: '123', id2: '456' },
+            },
         });
 
         // Un,successful match
-        expect(path.test('/users/details/123-456')).toBeDefined();
-        expect(path.test('/users/profile/123-456?id3=789&id4=000')).toBeDefined();
+        expect(path.strictParse('/users/details/123-456')).toBeNull();
+        expect(path.strictParse('/users/profile/123-456?id3=789&id4=000', { strictQueryParams: true })).toBeNull();
 
         expect(path.build({ id: '123', id2: '456', id3: '789' })).toBe('/users/profile/123-456?id3=789');
+    });
+
+    it('should be able to recieve new options', () => {
+        const path = new Path('/users/profile/:id-:id2?:id3');
+
+        expect(path.options.urlParamsEncoding).toBe('default');
+        path.updateOptions({ urlParamsEncoding: 'none' });
+        expect(path.options.urlParamsEncoding).toBe('none');
+
+        const pathTwo = new Path('/users/profile/:id-:id2?:id3', { urlParamsEncoding: 'none' });
+        expect(pathTwo.options.urlParamsEncoding).toBe('none');
+
+        // Update configs shouldn't work if config was set in constructor
+        pathTwo.updateOptions({ urlParamsEncoding: 'default' });
+        expect(pathTwo.options.urlParamsEncoding).toBe('none');
+
+        // But could be forced
+        pathTwo.updateOptions({ urlParamsEncoding: 'default' }, true);
+        expect(pathTwo.options.urlParamsEncoding).toBe('default');
     });
 
     it('should match and build paths with splat parameters', () => {
         const path = new Path('/users/*splat');
         expect(path.hasSpatParam).toBe(true);
         // Successful match
-        expect(path.test('/users/profile/123')).toEqual({ splat: 'profile/123' });
-        expect(path.test('/users/admin/manage/view/123')).toEqual({
-            splat: 'admin/manage/view/123',
+        expect(path.strictParse('/users/profile/123')).toMatchObject({
+            match: {
+                urlParams: { splat: 'profile/123' },
+            },
+        });
+
+        expect(path.strictParse('/users/admin/manage/view/123')).toMatchObject({
+            match: {
+                urlParams: {
+                    splat: 'admin/manage/view/123',
+                },
+            },
         });
 
         // Build path
@@ -161,14 +263,22 @@ describe('Path', () => {
         const path = new Path('/users/*splat/view/:id');
         expect(path.hasSpatParam).toBe(true);
         // Successful match
-        expect(path.test('/users/profile/view/123')).toEqual({
-            splat: 'profile',
-            id: '123',
+        expect(path.strictParse('/users/profile/view/123')).toMatchObject({
+            match: {
+                urlParams: {
+                    splat: 'profile',
+                    id: '123',
+                },
+            },
         });
 
-        expect(path.test('/users/admin/manage/view/123')).toEqual({
-            splat: 'admin/manage',
-            id: '123',
+        expect(path.strictParse('/users/admin/manage/view/123')).toMatchObject({
+            match: {
+                urlParams: {
+                    splat: 'admin/manage',
+                    id: '123',
+                },
+            },
         });
     });
 
@@ -176,10 +286,16 @@ describe('Path', () => {
         const path = new Path('/:section/*splat?id');
         expect(path.hasSpatParam).toBe(true);
         // Successful match
-        expect(path.test('/users/profile/view?id=123')).toEqual({
-            section: 'users',
-            splat: 'profile/view',
-            id: '123',
+        expect(path.strictParse('/users/profile/view?id=123')).toMatchObject({
+            match: {
+                urlParams: {
+                    section: 'users',
+                    splat: 'profile/view',
+                },
+                queryParams: {
+                    id: '123',
+                },
+            },
         });
 
         expect(path.build({ section: 'users', splat: 'profile/view', id: '123' })).toBe('/users/profile/view?id=123');
@@ -192,19 +308,50 @@ describe('Path', () => {
         expect(path.build({ section: 'profile', id: '123' })).toBe('/users/;section=profile;id=123');
 
         // Successful match
-        expect(path.test('/users/;section=profile;id=123')).toEqual({
-            section: 'profile',
-            id: '123',
+        expect(path.strictParse('/users/;section=profile;id=123')).toMatchObject({
+            match: {
+                urlParams: {
+                    section: 'profile',
+                    id: '123',
+                },
+            },
         });
     });
+
+    // it('bfc', () => {
+    //     let path = new Path('/');
+    //     console.debug('Path: /users/kek');
+    //     console.debug(path.parse('/'));
+    // });
+
+    // it('bfg', () => {
+    //     let path = new Path('/user/');
+    //     console.debug('Path: /users/kek');
+    //     console.debug(path.parse('/users/kek'));
+
+    //     console.debug('Path: /users');
+    //     console.debug(path.parse('/users'));
+
+    //     console.debug('Path: /user');
+    //     console.debug(path.parse('/user'));
+
+    //     console.debug('Path: /user/');
+    //     console.debug(path.parse('/user/'));
+
+    //     console.debug('Path: /user/kek/');
+    //     console.debug(path.parse('/user/kek/'));
+
+    //     console.debug('Path: /user/kek');
+    //     console.debug(path.parse('/user/kek'));
+    // });
 
     it('should match and build paths with constrained parameters', () => {
         let path = new Path('/users/:id<\\d+>');
         // Build path
         expect(path.build({ id: 99 })).toBe('/users/99');
         // Match path
-        expect(path.test('/users/11')).toEqual({ id: '11' });
-        expect(path.test('/users/thomas')).toBeDefined();
+        expect(path.strictParse('/users/11')).toMatchObject({ match: { urlParams: { id: '11' } } });
+        expect(path.strictParse('/users/thomas')).toBeNull();
 
         path = new Path('/users/;id<[A-F0-9]{6}>');
         // Build path
@@ -218,8 +365,8 @@ describe('Path', () => {
         expect(path.build({ id: 'fake' }, { ignoreConstraints: true })).toBe('/users/;id=fake');
 
         // Match path
-        expect(path.test('/users/;id=A76FE4')).toEqual({ id: 'A76FE4' });
-        expect(path.test('/users;id=Z12345')).toBeDefined();
+        expect(path.strictParse('/users/;id=A76FE4')).toMatchObject({ match: { urlParams: { id: 'A76FE4' } } });
+        expect(path.strictParse('/users;id=Z12345')).toBeNull();
     });
 
     it('should match and build paths with star (*) as a parameter value', () => {
@@ -227,28 +374,30 @@ describe('Path', () => {
 
         expect(path.build({ param: 'super*' })).toBe('/test/super*');
 
-        expect(path.test('/test/super*')).toEqual({ param: 'super*' });
+        expect(path.strictParse('/test/super*')).toMatchObject({ match: { urlParams: { param: 'super*' } } });
     });
 
     it('should match paths with optional trailing slashes', () => {
         let path = new Path('/my-path');
-        expect(path.test('/my-path/', { strictTrailingSlash: true })).toBeDefined();
-        expect(path.test('/my-path/', { strictTrailingSlash: false })).toEqual({});
+        expect(path.strictParse('/my-path/', { strictTrailingSlash: true })).toBeNull();
+        expect(path.strictParse('/my-path/', { strictTrailingSlash: false })).toMatchObject({ match: { path: '/my-path' }, remains: { path: '/' } });
 
         path = new Path('/my-path/');
-        expect(path.test('/my-path', { strictTrailingSlash: true })).toBeDefined();
-        expect(path.test('/my-path', { strictTrailingSlash: false })).toEqual({});
+        expect(path.strictParse('/my-path', { strictTrailingSlash: true })).toBeNull();
+        expect(path.strictParse('/my-path', { strictTrailingSlash: false })).toMatchObject({ match: { path: '/my-path' }, remains: { path: '' } });
+    });
 
-        path = new Path('/');
-        expect(path.test('', { strictTrailingSlash: true })).toBeDefined();
-        expect(path.test('', { strictTrailingSlash: false })).toBeDefined();
-        expect(path.test('/', { strictTrailingSlash: true })).toEqual({});
+    it('should correctly match path that is consist of one slash', () => {
+        const path = new Path('/');
+        expect(path.strictParse('', { strictTrailingSlash: true })).toBeNull();
+        expect(path.strictParse('', { strictTrailingSlash: false })).toBeNull();
+        expect(path.strictParse('/', { strictTrailingSlash: true })).toMatchObject({ match: {}, remains: {} });
     });
 
     it('should match paths with encoded values', () => {
         const path = new Path('/test/:id');
 
-        expect(path.partialTest('/test/%7B123-456%7D')).toEqual({ id: '{123-456}' });
+        expect(path.parse('/test/%7B123-456%7D')).toMatchObject({ match: { urlParams: { id: '{123-456}' } } });
     });
 
     it('should encode values and build paths', () => {
@@ -260,15 +409,18 @@ describe('Path', () => {
     it('should partial match up to a delimiter', () => {
         const path = new Path('/univers');
 
-        expect(path.partialTest('/university')).toBeDefined();
-        expect(path.partialTest('/univers/hello')).toEqual({});
+        expect(path.parse('/university')).toBeDefined();
+        expect(path.parse('/univers/hello')).toMatchObject({
+            match: { path: '/univers' },
+            remains: { path: '/hello' },
+        });
     });
 
     it('should match with special characters in path', () => {
         const path = new Path('/test/:name/test2');
 
-        expect(path.partialTest('/test/he:re/test2')).toEqual({ name: 'he:re' });
-        expect(path.partialTest("/test/he're/test2")).toEqual({ name: "he're" });
+        expect(path.parse('/test/he:re/test2')).toMatchObject({ match: { urlParams: { name: 'he:re' } } });
+        expect(path.parse("/test/he're/test2")).toMatchObject({ match: { urlParams: { name: "he're" } } });
 
         expect(path.build({ name: "he're" })).toEqual("/test/he're/test2");
     });
@@ -276,69 +428,74 @@ describe('Path', () => {
     it('should be case insensitive', () => {
         const path = new Path('/test');
 
-        expect(path.test('/test')).toEqual({});
-        expect(path.test('/Test')).toEqual({});
-        expect(path.test('/TEST', { caseSensitive: true })).toBeDefined();
+        expect(path.strictParse('/test')).toMatchObject({ match: { path: '/test' } });
+        expect(path.strictParse('/Test')).toMatchObject({ match: { path: '/Test' } });
+        expect(path.strictParse('/TEST', { caseSensitive: true })).toBeNull();
     });
 
-    it('should be to overwrite options when building', () => {
-        const path = new Path<{ param: string; enabled?: boolean }>('/:param?enabled', {
-            queryParamFormats: {
-                booleanFormat: 'string',
-            },
-            urlParamsEncoding: 'uriComponent',
-        });
+    // it('should be to overwrite options when building', () => {
+    //     const path = new Path<{ param: string; enabled?: boolean }>('/:param?enabled', {
+    //         queryParamFormats: {
+    //             booleanFormat: 'string',
+    //         },
+    //         urlParamsEncoding: 'uriComponent',
+    //     });
 
-        expect(path.build({ param: 'a+b', enabled: true })).toBe('/a%2Bb?enabled=true');
+    //     expect(path.build({ param: 'a+b', enabled: true })).toBe('/a%2Bb?enabled=true');
 
-        expect(
-            path.build(
-                { param: 'a+b', enabled: true },
-                {
-                    queryParamFormats: { booleanFormat: 'empty-true' },
-                    urlParamsEncoding: 'default',
-                }
-            )
-        ).toBe('/a+b?enabled');
-    });
+    //     expect(
+    //         path.build(
+    //             { param: 'a+b', enabled: true },
+    //             {
+    //                 queryParamFormats: { booleanFormat: 'empty-true' },
+    //                 urlParamsEncoding: 'default',
+    //             }
+    //         )
+    //     ).toBe('/a+b?enabled');
+    // });
 
-    it('should be to overwrite options when matching', () => {
-        const path = new Path<{ param: string; enabled?: boolean }>('/:param?enabled', {
-            queryParamFormats: {
-                booleanFormat: 'string',
-            },
-            urlParamsEncoding: 'uriComponent',
-        });
+    // it('should be to overwrite options when matching', () => {
+    //     const path = new Path<{ param: string; enabled?: boolean }>('/:param?enabled', {
+    //         queryParamFormats: {
+    //             booleanFormat: 'string',
+    //         },
+    //         urlParamsEncoding: 'uriComponent',
+    //     });
 
-        expect(path.test('/a+b?enabled')).toEqual({
-            param: 'a+b',
-            enabled: null,
-        });
+    //     expect(path.test('/a+b?enabled')).toEqual({
+    //         param: 'a+b',
+    //         enabled: null,
+    //     });
 
-        expect(
-            path.test('/a+b?enabled', {
-                queryParamFormats: { booleanFormat: 'empty-true' },
-            })
-        ).toEqual({
-            param: 'a+b',
-            enabled: true,
-        });
-    });
+    //     expect(
+    //         path.test('/a+b?enabled', {
+    //             queryParamFormats: { booleanFormat: 'empty-true' },
+    //         })
+    //     ).toEqual({
+    //         param: 'a+b',
+    //         enabled: true,
+    //     });
+    // });
+
+    // it('test', () => {
+    //     // let result = queryString.exclude('/?fos=1&foo[0]=2&foo[1]=3', ['foo', 'fos'], { arrayFormat: 'index' });
+    //     // console.debug(result);
+    //     let result2 = queryString.parseUrl('?a=1', { arrayFormat: 'index' });
+    //     console.debug(result2);
+    //     console.debug(queryString.stringifyUrl({ url: '', query: { a: 1 } }));
+    //     // console.debug(queryString.stringifyUrl({ url: '', query: { a: 1 } }));
+    // });
 
     it('should match unencoded pipes (Firefox)', () => {
         const path = new Path('/test/:param');
 
-        expect(path.test('/test/1|2')).toEqual({
-            param: '1|2',
-        });
+        expect(path.strictParse('/test/1|2')).toMatchObject({ match: { urlParams: { param: '1|2' } } });
     });
 
     it('should support a wide range of characters', () => {
         const path = new Path('/test/:param');
 
-        expect(path.test('/test/1+2=3@*')).toEqual({
-            param: '1+2=3@*',
-        });
+        expect(path.strictParse('/test/1+2=3@*')).toMatchObject({ match: { urlParams: { param: '1+2=3@*' } } });
     });
 
     describe('default encoding', () => {
@@ -353,13 +510,9 @@ describe('Path', () => {
         });
 
         it('should match with correct decoding', () => {
-            expect(path.test('/test%24%40')).toEqual({
-                param: 'test$@',
-            });
+            expect(path.strictParse('/test%24%40')).toMatchObject({ match: { urlParams: { param: 'test$@' } } });
 
-            expect(path.partialTest('/test$@')).toEqual({
-                param: 'test$@',
-            });
+            expect(path.parse('/test$@')).toMatchObject({ match: { urlParams: { param: 'test$@' } } });
         });
     });
 
@@ -377,13 +530,9 @@ describe('Path', () => {
         });
 
         it('should match with correct decoding', () => {
-            expect(path.test('/test%24%40')).toEqual({
-                param: 'test$@',
-            });
+            expect(path.strictParse('/test%24%40')).toMatchObject({ match: { urlParams: { param: 'test$@' } } });
 
-            expect(path.partialTest('/test$@')).toEqual({
-                param: 'test$@',
-            });
+            expect(path.parse('/test$@')).toMatchObject({ match: { urlParams: { param: 'test$@' } } });
         });
     });
 
@@ -399,13 +548,9 @@ describe('Path', () => {
         });
 
         it('should match with correct decoding', () => {
-            expect(path.test('/test$%25')).toEqual({
-                param: 'test$%',
-            });
+            expect(path.strictParse('/test$%25')).toMatchObject({ match: { urlParams: { param: 'test$%' } } });
 
-            expect(path.partialTest('/test$@')).toEqual({
-                param: 'test$@',
-            });
+            expect(path.parse('/test$@')).toMatchObject({ match: { urlParams: { param: 'test$@' } } });
         });
     });
 
@@ -423,9 +568,7 @@ describe('Path', () => {
         });
 
         it('should match with correct decoding', () => {
-            expect(path.test('/test$%25')).toEqual({
-                param: 'test$%25',
-            });
+            expect(path.strictParse('/test$%25')).toMatchObject({ match: { urlParams: { param: 'test$%25' } } });
         });
     });
 });

@@ -1,5 +1,3 @@
-export type { IOptions as QueryParamFormats } from 'search-params';
-
 /**
  * Type:\
  * __default__ - encode every segment through `encodeURIComponent` except these additional symbols: `$+,;|`:\
@@ -18,11 +16,10 @@ export type URLParamsEncodingType = 'default' | 'uriComponent' | 'none';
 export type TrailingSlashMode = 'default' | 'never' | 'always';
 
 /** Mode:\
- * __default__ - parse all, build only defined\
- * __strict__ - parse only defined, build only defined\
- * __loose__ - parse all, build all
+ * __default__ - parse all, build all\
+ * __strict__ - parse only defined, build only defined
  */
-export type QueryParamsMode = 'default' | 'strict' | 'loose';
+export type QueryParamsMode = 'default' | 'strict';
 
 /**
  * Parsed url params, as object
