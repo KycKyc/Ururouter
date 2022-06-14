@@ -1,5 +1,5 @@
 import type { ParseResult } from 'pathParser';
-import queryString from 'query-string';
+import { stringifyUrl, parseUrl } from 'query-string';
 import type { Anchor, Params } from '../types/common';
 import { MatchOptions, RouteNode } from './RouteNode';
 
@@ -51,7 +51,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
 
             // Rebuilding path
             if (Object.keys(result.remains.queryParams).length > 0) {
-                path = queryString.stringifyUrl({ url: basePath, query: result.remains.queryParams }, node.pathOptions?.queryParamOptions);
+                path = stringifyUrl({ url: basePath, query: result.remains.queryParams }, node.pathOptions?.queryParamOptions);
             } else {
                 path = basePath;
             }
@@ -64,7 +64,7 @@ const matchChildren = (nodes: Map<string, RouteNode>, path: string, options: Mat
             if (basePath.length === 0) {
                 // Process params that were left intact
                 if (queryParamsMode !== 'strict') {
-                    let queryRemains = queryString.parseUrl(path, defaultQueryOptions).query;
+                    let queryRemains = parseUrl(path, defaultQueryOptions).query;
                     for (let paramName in queryRemains) {
                         if (paramName in currentMatch.params) continue;
                         currentMatch.params[paramName] = queryRemains[paramName];
