@@ -1,4 +1,4 @@
-import queryString from 'query-string';
+import { stringify } from 'query-string';
 import type { Params, Anchor } from '../types/common';
 import type { MatchResponse } from './matchChildren';
 import type { BuildOptions, RouteNode, RouteNodeState, RouteNodeStateMeta } from './RouteNode';
@@ -89,7 +89,7 @@ export const buildPathFromNodes = (nodes: RouteNode[], params: Params = {}, anch
     }
 
     if (queryParamsMode === 'default' && Object.keys(params).length > 0) {
-        _search.push(queryString.stringify(params, { sort: false }));
+        _search.push(stringify(params, { sort: false }));
     }
 
     let path = _path.join('').replace(/\/\/{1,}/g, '/');

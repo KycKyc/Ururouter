@@ -1,4 +1,4 @@
-import queryString from 'query-string';
+import { parse, stringify } from 'query-string';
 import type { ParseOptions } from 'query-string';
 
 import type { URLParamsEncodingType } from '../types/common';
@@ -200,7 +200,7 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
         //     return result;
         // }
 
-        const queryParams = queryString.parse(query, this.options.queryParamOptions);
+        const queryParams = parse(query, this.options.queryParamOptions);
         for (let param of Object.keys(queryParams)) {
             if (this.isQueryParam(param)) {
                 appendQueryParam(result.match.queryParams, param, queryParams[param]);
@@ -293,7 +293,7 @@ export class Path<T extends Record<string, any> = Record<string, any>> {
                 return sparams;
             }, {});
 
-        const searchPart = queryString.stringify(searchParams, this.options.queryParamOptions);
+        const searchPart = stringify(searchParams, this.options.queryParamOptions);
 
         return {
             base,

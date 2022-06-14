@@ -41,7 +41,7 @@ export interface RouteNodeInitParams {
 const trailingSlashRex = /(.+?)(\/)(\?.*$|$)/gim;
 
 export class RouteNode {
-    ['constructor']: new (signature: RouteNodeInitParams, parent?: RouteNode) => this;
+    // ['constructor']: new (params: RouteNodeInitParams) => this;
     name: string;
     treeNames: string[];
     path: string;
@@ -75,7 +75,7 @@ export class RouteNode {
         this.add(children, false);
         if (sort) this.reflow();
 
-        return this;
+        // return this;
     }
 
     /**
@@ -114,7 +114,7 @@ export class RouteNode {
         // If route is some object and not instance of RouteNode class, we should build correct instance from it
         if (!(route instanceof RouteNode)) {
             let { name, path, pathOptions, children = [], ...extra } = route;
-            node = new this.constructor({
+            node = new (this.constructor as new (params: RouteNodeInitParams) => this)({
                 name,
                 path,
                 pathOptions,
