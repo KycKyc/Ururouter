@@ -69,7 +69,7 @@ type NavigationResult<NodeClass> = {
     };
 };
 
-export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<Dependencies>> {
+export class Ururouter<Dependencies, NodeClass extends Node<Dependencies> = Node<Dependencies>> {
     options: Options = {
         allowNotFound: false,
 

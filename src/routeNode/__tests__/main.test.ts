@@ -1070,60 +1070,77 @@ describe('RouteNode', function () {
     });
 
     describe('experiments', function () {
-        it('reviews', () => {
-            // let tree = createNode({
-            //     name: 'app',
-            //     children: [
-            //         createNode({
-            //             name: 'user',
-            //             path: '/user',
-            //             children: [
-            //                 createNode({
-            //                     name: 'reviews',
-            //                     path: '/reviews',
-            //                     children: [
-            //                         createNode({ name: 'index', path: '/' }),
-            //                         createNode({ name: 'page', path: '/:page' }),
-            //                         createNode({ name: 'test', path: '/test' }),
-            //                         createNode({ name: 'testSlash', path: '/test/' }),
-            //                     ],
-            //                 }),
-            //                 createNode({ name: 'orders', path: '/orders/' }),
-            //             ],
-            //         }),
-            //         createNode({ name: 'orders', path: '/orders/' }),
-            //     ],
-            // });
-            // let result;
-            // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
-            // console.dir(tree, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // console.debug('strictTrailingSlash: false');
-            // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews/test/', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // console.debug('strictTrailingSlash: true');
-            // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: true });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews');
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews/1');
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // console.debug('trailingSlashMode');
-            // let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
-            // console.dir(_path);
-            // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'always' });
-            // console.dir(_path);
-            // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
-            // console.dir(_path);
-            // _path = tree.buildPath('user.reviews.index', {});
-            // console.dir(_path);
-        });
-
+        // it('should whatever index', () => {
+        //     const app = new RouteNode({
+        //         name: 'app',
+        //         children: [
+        //             {
+        //                 path: '/',
+        //                 name: 'market',
+        //                 children: [
+        //                     { path: '/', name: 'index' },
+        //                     { path: '/popular', name: 'popular' },
+        //                 ],
+        //             },
+        //         ],
+        //     });
+        //     let result;
+        //     result = app.buildState('market');
+        //     console.debug(result);
+        // });
+        // it('reviews', () => {
+        // let tree = createNode({
+        //     name: 'app',
+        //     children: [
+        //         createNode({
+        //             name: 'user',
+        //             path: '/user',
+        //             children: [
+        //                 createNode({
+        //                     name: 'reviews',
+        //                     path: '/reviews',
+        //                     children: [
+        //                         createNode({ name: 'index', path: '/' }),
+        //                         createNode({ name: 'page', path: '/:page' }),
+        //                         createNode({ name: 'test', path: '/test' }),
+        //                         createNode({ name: 'testSlash', path: '/test/' }),
+        //                     ],
+        //                 }),
+        //                 createNode({ name: 'orders', path: '/orders/' }),
+        //             ],
+        //         }),
+        //         createNode({ name: 'orders', path: '/orders/' }),
+        //     ],
+        // });
+        // let result;
+        // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
+        // console.dir(tree, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // console.debug('strictTrailingSlash: false');
+        // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews/test/', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // console.debug('strictTrailingSlash: true');
+        // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: true });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews');
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews/1');
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // console.debug('trailingSlashMode');
+        // let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
+        // console.dir(_path);
+        // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'always' });
+        // console.dir(_path);
+        // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
+        // console.dir(_path);
+        // _path = tree.buildPath('user.reviews.index', {});
+        // console.dir(_path);
+        // });
         // it('experiments - test', () => {
         //     const mainNodes = [
         //         new RouteNode({ name: 'default', path: '/' }),
@@ -1138,12 +1155,10 @@ describe('RouteNode', function () {
         //             ],
         //         }),
         //     ];
-
         //     const enNode = new RouteNode({ name: 'en', path: '/', children: mainNodes });
         //     const ruNode = new RouteNode({ name: 'ru', path: '/ru', children: mainNodes });
         //     const koNode = new RouteNode({ name: 'ko', path: '/ko', children: mainNodes });
         //     const appNodes = new RouteNode({ children: [enNode, ruNode, koNode] });
-
         //     expect(appNodes.matchPath('/user')).toEqual({
         //         name: 'en.user.default',
         //         params: {},

@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render, screen, act } from '@testing-library/react';
 import React, { useMemo } from 'react';
 import { Node } from 'router/node';
-import { Router42, Options, State } from '../../router/router';
+import { Ururouter, Options, State } from '../../router/router';
 import { Link } from '../components/Link';
 import { NodeComponent } from '../components/NodeComponent';
 import { Route, RouteState } from '../components/Route';
@@ -390,7 +390,7 @@ describe('React', () => {
             await router.start('/');
 
             type WithRouterProps = {
-                router: Router42<any, Node<any>> | null;
+                router: Ururouter<any, Node<any>> | null;
             };
             class ComponentWithRouter extends React.Component<WithRouterProps> {
                 render() {
@@ -430,7 +430,7 @@ describe('React', () => {
             await router.start('/');
 
             type WithRouterProps = {
-                router: Router42<any, Node<any>> | null;
+                router: Ururouter<any, Node<any>> | null;
                 state: State<Node<any>> | null;
             };
             class ComponentWithRouterState extends React.Component<WithRouterProps> {
@@ -614,7 +614,7 @@ const createRouter = (options: Partial<Options> = {}) => {
         ],
     });
 
-    return new Router42(
+    return new Ururouter(
         [
             { name: 'en', path: '/', children: mainNodes },
             { name: 'ru', path: '/ru', children: mainNodes },
@@ -624,7 +624,7 @@ const createRouter = (options: Partial<Options> = {}) => {
     );
 };
 
-const createReactApp = (router: Router42<any, any>, Profile: React.ComponentType<any>) => {
+const createReactApp = (router: Ururouter<any, any>, Profile: React.ComponentType<any>) => {
     return (
         <RouterProvider router={router}>
             <nav>

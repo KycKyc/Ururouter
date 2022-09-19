@@ -53,7 +53,7 @@ export class RouteNode {
     private isRoot: boolean;
     defaultParams: Params = {}; // TODO: proper way of defining them in constructor
 
-    constructor({ name = '', path = '', pathOptions, sort = true, children = [], ...augments }: RouteNodeInitParams) {
+    constructor({ name = '', path = '', pathOptions, sort = true, children = [], defaultParams, ...augments }: RouteNodeInitParams) {
         this.name = name;
         this.treeNames = [];
         this.absolute = /^~/.test(path);
@@ -67,6 +67,10 @@ export class RouteNode {
         this.nameMap = new Map();
 
         this.masterNode = this;
+
+        if (defaultParams) {
+            this.defaultParams = defaultParams;
+        }
 
         if (augments) {
             Object.assign(this, augments);

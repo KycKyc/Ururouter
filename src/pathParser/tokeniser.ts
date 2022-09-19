@@ -12,7 +12,7 @@ export interface Token {
     match: string;
     // Param name
     paramName: string;
-    /** Constrain of param, defined as annother regex */
+    /** Constrain of param, defined as another regex */
     constrain: string[];
     regex?: RegExp;
 }
