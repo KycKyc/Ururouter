@@ -1,11 +1,11 @@
 import type { Params, Anchor } from '../types/common';
-import type { Router42, State } from './router';
+import type { Ururouter, State } from './router';
 import type { EventCallbackNavigation, EventParamsNavigation } from './types/events';
 
 interface BrowserState {}
 
 export type HistoryControllerConstructor<NodeClass> = {
-    new (router: Router42<any, any>): HistoryController<NodeClass>;
+    new (router: Ururouter<any, any>): HistoryController<NodeClass>;
 };
 export interface HistoryController<NodeClass> {
     start: () => void;
@@ -15,10 +15,10 @@ export interface HistoryController<NodeClass> {
 }
 
 class BrowserHistory<Dependencies> implements HistoryController<any> {
-    router: Router42<Dependencies>;
+    router: Ururouter<Dependencies>;
     removePopStateListener: (() => void) | null;
 
-    constructor(router: Router42<Dependencies, any>) {
+    constructor(router: Ururouter<Dependencies, any>) {
         this.router = router;
         this.removePopStateListener = null;
     }
@@ -94,17 +94,17 @@ class BrowserHistory<Dependencies> implements HistoryController<any> {
         }
     }
 
-    onTransitionSuccess({ fromState, toState, options }: EventParamsNavigation<any>) {
+    onTransitionSuccess({ toState, options }: EventParamsNavigation<any>) {
+        // Bail if this navigation was triggered by popState event
+        if (options.popState) return;
+
         const historyState = this.getState();
         const hasState = historyState !== null;
 
         // const statesAreEqual = fromState !== null && this.router.areStatesEqual(fromState, toState, false);
         const replace = options.replace || !hasState; // || statesAreEqual;
-        let url = this.router.buildPath(toState.name, toState.params, toState.anchor);
 
-        if (!options.popState) {
-            this.updateState(toState, url, replace);
-        }
+        this.updateState(toState, toState.path, replace);
     }
 }
 

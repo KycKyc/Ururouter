@@ -3,7 +3,7 @@ import { isNodeActive } from '../helpers';
 import { useRouterState } from '../hooks/useRouterState';
 
 interface Props {
-    children: React.ReactChild | React.ReactChild[];
+    children: React.ReactNode;
 }
 
 export const Switch = ({ children }: Props) => {

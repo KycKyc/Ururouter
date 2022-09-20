@@ -36,6 +36,7 @@ describe('RouteNode', function () {
     });
 
     it('should perform a final sort all routes after adding them', () => {
+        // TODO: remove or refactor
         const routes = [...Array(10)].map((_, index) => ({
             name: `r${index}`,
             path: `/${index}`,
@@ -47,7 +48,7 @@ describe('RouteNode', function () {
 
         createNode({
             children: routes,
-            options: {
+            pathOptions: {
                 finalSort: true,
             },
         });
@@ -466,7 +467,7 @@ describe('RouteNode', function () {
     });
 
     it('should match paths with optional trailing slashes and a non-empty root node', function () {
-        const rootNode = new RouteNode({ path: '?c&d', children: [new RouteNode({ name: 'a', path: '/' })] });
+        const rootNode = new RouteNode({ path: '/?c&d', children: [new RouteNode({ name: 'a', path: '/' })] });
 
         const state = { name: 'a', params: {}, anchor: null };
 
@@ -490,7 +491,7 @@ describe('RouteNode', function () {
     });
 
     it('should support query parameters in the root node', function () {
-        const node = new RouteNode({ path: '?a', children: [new RouteNode({ name: 'route', path: '/path?b' })] });
+        const node = new RouteNode({ path: '/?a', children: [new RouteNode({ name: 'route', path: '/path?b' })] });
         expect(node.matchPath('/path?a=1&b=2')).toEqual({
             meta: {
                 params: {
@@ -535,9 +536,9 @@ describe('RouteNode', function () {
         const node = new RouteNode({ children: [new RouteNode({ name: 'route', path: '/path' })] });
 
         expect(node.buildPath('route')).toBe('/path');
-        expect(node.buildPath('route', { param: '1' })).toBe('/path');
-        node.setPath('?param');
-        expect(node.buildPath('route', { param: '1' })).toBe('/path?param=1');
+        expect(node.buildPath('route', { param: '1' }, null, { queryParamsMode: 'strict' })).toBe('/path');
+        node.setPath('/?param');
+        expect(node.buildPath('route', { param: '1' }, null, { queryParamsMode: 'strict' })).toBe('/path?param=1');
     });
 
     it('should serialise extra search parameters', function () {
@@ -629,8 +630,8 @@ describe('RouteNode', function () {
             children: [
                 new RouteNode({
                     name: 'app',
-                    path: '?:showVersion',
-                    children: [new RouteNode({ name: 'admin', path: '/admin', children: [new RouteNode({ name: 'users', path: '/?:sort?:page' })] })],
+                    path: '?showVersion',
+                    children: [new RouteNode({ name: 'admin', path: '/admin', children: [new RouteNode({ name: 'users', path: '/?sort&page' })] })],
                 }),
             ],
         });
@@ -668,7 +669,7 @@ describe('RouteNode', function () {
         it('should serialise extra params to search part', () => {
             const node = new RouteNode({ children: [new RouteNode({ name: 'home', path: '/home' })] });
 
-            expect(node.buildPath('home', { extra: 1, more: 2 }, null, { queryParamsMode: 'loose' })).toBe('/home?extra=1&more=2');
+            expect(node.buildPath('home', { extra: 1, more: 2 }, null)).toBe('/home?extra=1&more=2');
         });
     });
 
@@ -743,7 +744,7 @@ describe('RouteNode', function () {
                         new RouteNode({
                             name: 'b',
                             path: '/',
-                            children: [new RouteNode({ name: 'index', path: '/' }), new RouteNode({ name: 'c', path: ':bar' })],
+                            children: [new RouteNode({ name: 'index', path: '/' }), new RouteNode({ name: 'c', path: '/:bar' })],
                         }),
                     ],
                 }),
@@ -784,16 +785,17 @@ describe('RouteNode', function () {
     });
 
     it('should pass query parameters options to path-parser', () => {
-        const node = new RouteNode({ children: [new RouteNode({ name: 'a', path: '/a?b&c' })] });
-
-        expect(
-            node.matchPath('/a?b=true&c[]=1', {
-                queryParamFormats: {
-                    booleanFormat: 'string',
-                    arrayFormat: 'brackets',
+        const node = new RouteNode({
+            children: [new RouteNode({ name: 'a', path: '/a?b&c' })],
+            pathOptions: {
+                queryParamOptions: {
+                    parseBooleans: true,
+                    arrayFormat: 'bracket',
                 },
-            })?.params
-        ).toEqual({
+            },
+        });
+
+        expect(node.matchPath('/a?b=true&c[]=1')?.params).toEqual({
             b: true,
             c: ['1'],
         });
@@ -803,18 +805,12 @@ describe('RouteNode', function () {
         const routes = [
             {
                 name: 'page',
-                path: '/:name<.+>/:id<(\\w{2}[0-9]{4})>.html',
+                path: '/:name<.+>/:id<\\w{2}[0-9]{4}>.html',
             },
         ];
 
-        const options = {
-            trailingSlashMode: 'never',
-            queryParamsMode: 'loose',
-            queryParams: { nullFormat: 'hidden' },
-        } as const;
-
         const node = new RouteNode({ children: routes });
-        expect(node.matchPath('/foo+bar/AB1234.html', options)?.params).toEqual({
+        expect(node.matchPath('/foo+bar/AB1234.html')?.params).toEqual({
             id: 'AB1234',
             name: 'foo+bar',
         });
@@ -824,7 +820,7 @@ describe('RouteNode', function () {
         const routes = [
             {
                 name: 'page',
-                path: '/:name<.+>',
+                path: '/:name<\\d+>',
             },
         ];
 
@@ -943,6 +939,7 @@ describe('RouteNode', function () {
 
     describe('uri encoding', () => {
         const routeNode = new RouteNode({
+            pathOptions: { urlParamsEncoding: 'uriComponent' },
             children: [
                 {
                     name: 'route',
@@ -958,22 +955,13 @@ describe('RouteNode', function () {
                     {
                         param: 'test$@',
                     },
-                    null,
-                    {
-                        urlParamsEncoding: 'uriComponent',
-                    }
+                    null
                 )
             ).toBe('/test%24%40');
         });
 
         it('should match with correct decoding', () => {
-            expect(
-                withoutMeta(
-                    routeNode.matchPath('/test%24%40', {
-                        urlParamsEncoding: 'uriComponent',
-                    })
-                )
-            ).toEqual({
+            expect(withoutMeta(routeNode.matchPath('/test%24%40'))).toEqual({
                 name: 'route',
                 params: {
                     param: 'test$@',
@@ -1082,59 +1070,139 @@ describe('RouteNode', function () {
     });
 
     describe('experiments', function () {
-        it('reviews', () => {
-            // let tree = createNode({
-            //     name: 'app',
-            //     children: [
-            //         createNode({
-            //             name: 'user',
-            //             path: '/user',
-            //             children: [
-            //                 createNode({
-            //                     name: 'reviews',
-            //                     path: '/reviews',
-            //                     children: [
-            //                         createNode({ name: 'index', path: '/' }),
-            //                         createNode({ name: 'page', path: '/:page' }),
-            //                         createNode({ name: 'test', path: '/test' }),
-            //                         createNode({ name: 'testSlash', path: '/test/' }),
-            //                     ],
-            //                 }),
-            //                 createNode({ name: 'orders', path: '/orders/' }),
-            //             ],
-            //         }),
-            //         createNode({ name: 'orders', path: '/orders/' }),
-            //     ],
-            // });
-            // let result;
-            // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
-            // console.dir(tree, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // console.debug('strictTrailingSlash: false');
-            // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews/test/', { strictTrailingSlash: false });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // console.debug('strictTrailingSlash: true');
-            // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: true });
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews');
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // result = tree.matchPath('/user/reviews/1');
-            // console.dir(result, { depth: null, breakLength: 140 });
-            // console.debug('trailingSlashMode');
-            // let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
-            // console.dir(_path);
-            // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'always' });
-            // console.dir(_path);
-            // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
-            // console.dir(_path);
-            // _path = tree.buildPath('user.reviews.index', {});
-            // console.dir(_path);
+        // it('should whatever index', () => {
+        //     const app = new RouteNode({
+        //         name: 'app',
+        //         children: [
+        //             {
+        //                 path: '/',
+        //                 name: 'market',
+        //                 children: [
+        //                     { path: '/', name: 'index' },
+        //                     { path: '/popular', name: 'popular' },
+        //                 ],
+        //             },
+        //         ],
+        //     });
+        //     let result;
+        //     result = app.buildState('market');
+        //     console.debug(result);
+        // });
+        // it('reviews', () => {
+        // let tree = createNode({
+        //     name: 'app',
+        //     children: [
+        //         createNode({
+        //             name: 'user',
+        //             path: '/user',
+        //             children: [
+        //                 createNode({
+        //                     name: 'reviews',
+        //                     path: '/reviews',
+        //                     children: [
+        //                         createNode({ name: 'index', path: '/' }),
+        //                         createNode({ name: 'page', path: '/:page' }),
+        //                         createNode({ name: 'test', path: '/test' }),
+        //                         createNode({ name: 'testSlash', path: '/test/' }),
+        //                     ],
+        //                 }),
+        //                 createNode({ name: 'orders', path: '/orders/' }),
+        //             ],
+        //         }),
+        //         createNode({ name: 'orders', path: '/orders/' }),
+        //     ],
+        // });
+        // let result;
+        // let result = tree.matchPath('/user/orders', { strictTrailingSlash: false });
+        // console.dir(tree, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews/', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // console.debug('strictTrailingSlash: false');
+        // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews/test/', { strictTrailingSlash: false });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // console.debug('strictTrailingSlash: true');
+        // result = tree.matchPath('/user/reviews/test', { strictTrailingSlash: true });
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews');
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // result = tree.matchPath('/user/reviews/1');
+        // console.dir(result, { depth: null, breakLength: 140 });
+        // console.debug('trailingSlashMode');
+        // let _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'never' });
+        // console.dir(_path);
+        // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'always' });
+        // console.dir(_path);
+        // _path = tree.buildPath('user.reviews.index', {}, null, { trailingSlashMode: 'default' });
+        // console.dir(_path);
+        // _path = tree.buildPath('user.reviews.index', {});
+        // console.dir(_path);
+        // });
+        // it('experiments - test', () => {
+        //     const mainNodes = [
+        //         new RouteNode({ name: 'default', path: '/' }),
+        //         new RouteNode({ name: 'home', path: '/home' }),
+        //         new RouteNode({
+        //             name: 'user',
+        //             path: '/user',
+        //             children: [
+        //                 new RouteNode({ name: 'default', path: '/' }),
+        //                 new RouteNode({ name: 'orders', path: '/orders' }),
+        //                 new RouteNode({ name: 'reviews', path: '/review/:page' }),
+        //             ],
+        //         }),
+        //     ];
+        //     const enNode = new RouteNode({ name: 'en', path: '/', children: mainNodes });
+        //     const ruNode = new RouteNode({ name: 'ru', path: '/ru', children: mainNodes });
+        //     const koNode = new RouteNode({ name: 'ko', path: '/ko', children: mainNodes });
+        //     const appNodes = new RouteNode({ children: [enNode, ruNode, koNode] });
+        //     expect(appNodes.matchPath('/user')).toEqual({
+        //         name: 'en.user.default',
+        //         params: {},
+        //         anchor: null,
+        //         meta: { params: { en: {}, 'en.user': {}, 'en.user.default': {} } },
+        //     });
+        // });
+    });
+
+    it('should move absolute node under control of master node, even if we would add it at the later stages', () => {
+        const absNode = new RouteNode({ path: '~/abs', name: 'abs' });
+        const intermediateNode = new RouteNode({ path: '/one', name: 'one' });
+        let tree = new RouteNode({
+            children: [{ path: '/', name: 'index' }, intermediateNode],
         });
+
+        intermediateNode.add(absNode);
+
+        expect(tree.nameMap.get('abs')).toBeDefined();
+    });
+
+    it('should warn about atteemp to defind child node twice', () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const childNNode = new RouteNode({ name: 'child', path: '/child' });
+        let tree = new RouteNode({
+            children: [{ path: '/', name: 'index' }, childNNode],
+        });
+
+        tree.add(childNNode);
+
+        expect(warn).toBeCalledWith("This child Node was already defined inside its parent, ignore: 'child'");
+    });
+
+    it('should build with trailing slashes, if defined', () => {
+        let tree = new RouteNode({
+            children: [
+                { path: '/', name: 'index' },
+                { path: '/one', name: 'one' },
+            ],
+        });
+
+        const path = tree.buildPath('one', {}, null, { trailingSlashMode: 'always' });
+        expect(path).toBe('/one/');
     });
 
     it('should match path with hash (anchor)', () => {
@@ -1186,8 +1254,8 @@ describe('RouteNode', function () {
             ],
         });
 
-        let result = tree.buildPath('user.reviews.index', { test: '1' }, 'anchor', { queryParamsMode: 'loose' });
-        expect(result).toBe('/user/reviews/?test=1#anchor');
+        let result = tree.buildPath('user.reviews.index', { test: '1', kek: 'lol' }, 'anchor');
+        expect(result).toBe('/user/reviews/?test=1&kek=lol#anchor');
     });
 
     it('shoud throw if one root node add another root node that do not have any children', () => {
@@ -1198,6 +1266,31 @@ describe('RouteNode', function () {
         expect(() => {
             tree.add({ name: '', path: '' });
         }).toThrow("RouteNode.add() expects routes to have a name(not '') and a path, or at least have some children to steal");
+    });
+
+    it('should propagate master node path settings', () => {
+        let tree = new RouteNode({
+            pathOptions: { urlParamsEncoding: 'none' },
+            children: [
+                { name: 'index', path: '/' },
+                { name: 'one', path: '/one' },
+                { name: 'two', path: '/two' },
+                {
+                    name: 'parent',
+                    path: '/parent',
+                    pathOptions: { urlParamsEncoding: 'uriComponent' },
+                    children: [
+                        { name: 'childOne', path: '/childOne' },
+                        { name: 'childTwo', path: '/childtwo' },
+                    ],
+                },
+            ],
+        });
+
+        let index = tree.nameMap.get('index');
+        expect(index?.parser?.options.urlParamsEncoding).toBe('none');
+        let childOne = tree?.nameMap.get('parent')?.nameMap.get('childOne');
+        expect(childOne?.parser?.options.urlParamsEncoding).toBe('uriComponent');
     });
 });
 

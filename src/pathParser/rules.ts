@@ -1,10 +1,10 @@
-export const defaultOrConstrained = (match: string): string => '(' + (match ? match.replace(/(^<|>$)/g, '') : "[a-zA-Z0-9-_.~%':|=+\\*@$]+") + ')';
+export const defaultOrConstrained = (match: string): string => '(' + (match ? match : "[a-zA-Z0-9-_.~%':|=+\\*@$]+") + ')';
 
 export type RegExpFactory = (match: any) => RegExp;
 
 export interface IRule {
     /* The name of the rule */
-    name: string;
+    type: string;
     /* The regular expression used to find a token in a path definition */
     pattern: RegExp;
     /* The derived regular expression to match a path */
@@ -13,36 +13,36 @@ export interface IRule {
 
 const rules: IRule[] = [
     {
-        name: 'url-parameter',
+        type: 'url-parameter',
         pattern: /^:([a-zA-Z0-9-_]*[a-zA-Z0-9]{1})(<(.+?)>)?/,
-        regex: (match: RegExpMatchArray) => new RegExp(defaultOrConstrained(match[2])),
+        regex: (match: RegExpMatchArray) => new RegExp(defaultOrConstrained(match[3])),
     },
     {
-        name: 'url-parameter-splat',
+        type: 'url-parameter-splat',
         pattern: /^\*([a-zA-Z0-9-_]*[a-zA-Z0-9]{1})/,
         regex: /([^?]*)/,
     },
     {
-        name: 'url-parameter-matrix',
+        type: 'url-parameter-matrix',
         pattern: /^;([a-zA-Z0-9-_]*[a-zA-Z0-9]{1})(<(.+?)>)?/,
-        regex: (match: RegExpMatchArray) => new RegExp(';' + match[1] + '=' + defaultOrConstrained(match[2])),
+        regex: (match: RegExpMatchArray) => new RegExp(';' + match[1] + '=' + defaultOrConstrained(match[3])),
     },
     {
-        name: 'query-parameter',
+        type: 'query-parameter',
         pattern: /^(?:\?|&)(?::)?([a-zA-Z0-9-_]*[a-zA-Z0-9]{1})/,
     },
     {
-        name: 'delimiter',
+        type: 'delimiter',
         pattern: /^(\/|\?)/,
         regex: (match: RegExpMatchArray) => new RegExp('\\' + match[0]),
     },
     {
-        name: 'sub-delimiter',
+        type: 'sub-delimiter',
         pattern: /^(!|&|-|_|\.|;)/,
         regex: (match: RegExpMatchArray) => new RegExp(match[0]),
     },
     {
-        name: 'fragment',
+        type: 'fragment',
         pattern: /^([0-9a-zA-Z]+)/,
         regex: (match: RegExpMatchArray) => new RegExp(match[0]),
     },

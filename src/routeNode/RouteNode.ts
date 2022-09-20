@@ -1,18 +1,17 @@
 import { Path } from '../pathParser';
-import type { URLParamsEncodingType } from '../pathParser';
-import type { Params, Anchor, TrailingSlashMode, QueryParamsMode, QueryParamFormats } from '../types/common';
+import type { PathOptions } from '../pathParser';
+import type { Params, Anchor, TrailingSlashMode, QueryParamsMode } from '../types/common';
 import { buildPathFromNodes, buildStateFromMatch, getMetaFromNodes, getPathFromNodes, sortedNameMap, getDefaultParamsFromNodes } from './helpers';
 import matchChildren from './matchChildren';
 
 export interface BuildOptions {
     trailingSlashMode?: TrailingSlashMode;
     queryParamsMode?: QueryParamsMode;
-    queryParamFormats?: QueryParamFormats;
-    urlParamsEncoding?: URLParamsEncodingType;
 }
 
-export interface MatchOptions extends BuildOptions {
+export interface MatchOptions {
     caseSensitive?: boolean;
+    queryParamsMode?: QueryParamsMode;
 }
 
 export interface RouteNodeStateMeta {
@@ -30,38 +29,38 @@ export interface RouteNodeState {
     meta: RouteNodeStateMeta;
 }
 
-export interface RouteNodeOptions {
-    sort?: boolean;
-}
-
 export interface RouteNodeInitParams {
     name?: string;
     path?: string;
+    pathOptions?: Partial<PathOptions>;
     children?: RouteNodeInitParams[] | RouteNode[] | RouteNode;
-    options?: RouteNodeOptions;
+    sort?: boolean;
     defaultParams?: Params;
 }
 
 const trailingSlashRex = /(.+?)(\/)(\?.*$|$)/gim;
 
 export class RouteNode {
-    ['constructor']: new (signature: RouteNodeInitParams, parent?: RouteNode) => this;
+    // ['constructor']: new (params: RouteNodeInitParams) => this;
     name: string;
     treeNames: string[];
     path: string;
     absolute: boolean;
     parser: Path | null;
+    pathOptions?: Partial<PathOptions>;
     nameMap: Map<string, this>;
     private masterNode: this;
     private isRoot: boolean;
-    defaultParams: Params = {};
+    defaultParams: Params = {}; // TODO: proper way of defining them in constructor
 
-    constructor({ name = '', path = '', children = [], options = { sort: true }, ...augments }: RouteNodeInitParams) {
+    constructor({ name = '', path = '', pathOptions, sort = true, children = [], defaultParams, ...augments }: RouteNodeInitParams) {
         this.name = name;
         this.treeNames = [];
         this.absolute = /^~/.test(path);
+
         this.path = this.absolute ? path.slice(1) : path;
-        this.parser = this.path ? new Path(this.path) : null;
+        this.pathOptions = pathOptions;
+        this.parser = this.path ? new Path(this.path, this.pathOptions) : null;
 
         this.isRoot = !name || !path;
 
@@ -69,14 +68,18 @@ export class RouteNode {
 
         this.masterNode = this;
 
+        if (defaultParams) {
+            this.defaultParams = defaultParams;
+        }
+
         if (augments) {
             Object.assign(this, augments);
         }
 
         this.add(children, false);
-        if (options.sort) this.reflow();
+        if (sort) this.reflow();
 
-        return this;
+        // return this;
     }
 
     /**
@@ -114,14 +117,13 @@ export class RouteNode {
         let node: this;
         // If route is some object and not instance of RouteNode class, we should build correct instance from it
         if (!(route instanceof RouteNode)) {
-            let { name, path, children = [], ...extra } = route;
-            node = new this.constructor({
+            let { name, path, pathOptions, children = [], ...extra } = route;
+            node = new (this.constructor as new (params: RouteNodeInitParams) => this)({
                 name,
                 path,
+                pathOptions,
                 children,
-                options: {
-                    sort: false,
-                },
+                sort: false,
                 ...extra,
             });
         } else {
@@ -130,6 +132,7 @@ export class RouteNode {
 
         // Check if instance is corect one, do not allow mixed instance, will be chaotic otherwise
         if (!(node instanceof this.constructor)) {
+            // TODO: remove, probably doesn;t make sense, will throw earlier or denied by TS
             throw new Error('RouteNode.add() expects routes to be the same instance as the parrent node.');
         }
 
@@ -200,6 +203,7 @@ export class RouteNode {
 
             if (this.nameMap.get(node.name) === node) {
                 // Already defined, no point in redefining the same node on the same name and path
+                console.warn(`This child Node was already defined inside its parent, ignore: '${node.name}'`);
                 return this;
             }
 
@@ -259,12 +263,21 @@ export class RouteNode {
 
     private propagateMaster(node: this) {
         this.masterNode = node;
-        for (let node of this.nameMap.values()) {
-            node.propagateMaster(node);
+
+        // Pass master PathOptions to its childrens
+        if (this.masterNode.pathOptions !== undefined && this.pathOptions === undefined) {
+            this.pathOptions = this.masterNode.pathOptions;
+            this.parser?.updateOptions(this.masterNode.pathOptions);
+        }
+
+        for (let childNode of this.nameMap.values()) {
+            childNode.propagateMaster(node);
         }
     }
 
     private resetTreeNames() {
+        // TODO: We do not need this method ?
+        // rebuildTreeNames do all the works?
         this.treeNames = [];
         for (let node of this.nameMap.values()) {
             node.resetTreeNames();

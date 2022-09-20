@@ -1,5 +1,5 @@
 import type { RouteNodeState } from '../routeNode';
-import type { TrailingSlashMode, QueryParamsMode, QueryParamFormats, URLParamsEncodingType, Params, Anchor } from '../types/common';
+import type { TrailingSlashMode, QueryParamsMode, Params, Anchor } from '../types/common';
 import { BrowserHistory } from './browserHistory';
 import type { HistoryController, HistoryControllerConstructor } from './browserHistory';
 import { errorCodes, events } from './constants';
@@ -54,10 +54,7 @@ export interface Options {
     pathOptions: {
         trailingSlashMode: TrailingSlashMode;
         queryParamsMode: QueryParamsMode;
-        queryParamFormats?: QueryParamFormats;
-        urlParamsEncoding?: URLParamsEncodingType;
         caseSensitive: boolean;
-        strictTrailingSlash: boolean;
     };
 }
 
@@ -72,21 +69,14 @@ type NavigationResult<NodeClass> = {
     };
 };
 
-export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<Dependencies>> {
+export class Ururouter<Dependencies, NodeClass extends Node<Dependencies> = Node<Dependencies>> {
     options: Options = {
         allowNotFound: false,
 
         pathOptions: {
             trailingSlashMode: 'default',
             queryParamsMode: 'default',
-            queryParamFormats: {
-                arrayFormat: 'none',
-                booleanFormat: 'none',
-                nullFormat: 'default',
-            },
-            urlParamsEncoding: 'default',
             caseSensitive: false,
-            strictTrailingSlash: false,
         },
     };
 
@@ -185,13 +175,11 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
     buildPath(name: string, params: Params = {}, anchor: Anchor = null) {
         name = this.wildcardFormat(name);
         let defaultParams = this.rootNode.getDefaultParams(name);
-        const { trailingSlashMode, queryParamsMode, queryParamFormats, urlParamsEncoding } = this.options.pathOptions;
+        const { trailingSlashMode, queryParamsMode } = this.options.pathOptions;
 
         return this.rootNode.buildPath(name, { ...defaultParams, ...params }, anchor, {
             trailingSlashMode,
             queryParamsMode,
-            queryParamFormats,
-            urlParamsEncoding,
         });
     }
 
@@ -236,7 +224,7 @@ export class Router42<Dependencies, NodeClass extends Node<Dependencies> = Node<
                       id: generateId(),
                   }
                 : undefined,
-            path: this.buildPath(name, params),
+            path: this.buildPath(name, params, anchor),
             activeNodes: [],
         };
     }

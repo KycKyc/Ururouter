@@ -2,7 +2,7 @@ import { RouteNode } from '../../routeNode';
 import { errorCodes, events } from '../constants';
 import { Redirect } from '../errors';
 import { Node, NodeInitParams } from '../node';
-import { Router42, Options } from '../router';
+import { Ururouter, Options } from '../router';
 
 type EvenBetterInit<Dependencies> = Omit<NodeInitParams<Dependencies, EvenBetter<Dependencies>>, 'children'> & {
     additionalSomething: string;
@@ -33,7 +33,7 @@ describe('router42', () => {
 
     it('should throw if root node is not correct', async () => {
         let create = () => {
-            new Router42({
+            new Ururouter({
                 name: 'auctions',
                 path: '/auctions?type',
                 children: [
@@ -60,7 +60,7 @@ describe('router42', () => {
      */
     it('should throw, all nodes should share the same instance', () => {
         expect(() => {
-            new Router42({
+            new Ururouter({
                 children: [new Node({ name: 'en', path: '/' }), new Node({ name: 'ru', path: '/ru' }), new RouteNode({ name: 'ko', path: '/ko' })],
             });
         }).toThrow('RouteNode.add() expects routes to be the same instance as the parrent node.');
@@ -119,7 +119,7 @@ describe('router42', () => {
 
         routes.onEnter = ({ node }) => {};
 
-        const router = new Router42(routes);
+        const router = new Ururouter(routes);
         await router.start('/first');
         await router.navigate('second');
         expect(checkAugment.mock.calls.length).toBe(2);
@@ -174,7 +174,7 @@ describe('router42', () => {
 
         it('preflight & onEnter functions should work', async () => {
             const inspector = jest.fn();
-            const router = new Router42([
+            const router = new Ururouter([
                 {
                     name: 'user',
                     preflight: () => {
@@ -265,7 +265,7 @@ describe('router42', () => {
         });
 
         it('should cancel right after onEnter func after second navigation call (request delay simulation)', async () => {
-            const router = new Router42(
+            const router = new Ururouter(
                 [
                     {
                         name: 'orders',
@@ -310,7 +310,7 @@ describe('router42', () => {
         });
 
         it('default params are working', async () => {
-            const router = new Router42([
+            const router = new Ururouter([
                 { name: 'index', path: '/' },
                 { name: 'section', path: '/:section', defaultParams: { section: 'kek', q: 'q' } },
             ]);
@@ -321,7 +321,7 @@ describe('router42', () => {
         });
 
         it('redirect should work (simulating auth requirenment)', async () => {
-            const router = new Router42(
+            const router = new Ururouter(
                 [
                     { name: 'index', path: '/' },
                     { name: 'auth', path: '/auth' },
@@ -347,7 +347,7 @@ describe('router42', () => {
 
         it('params in the path of the node, shold affect node activation', async () => {
             let onEnter = jest.fn();
-            const router = new Router42([
+            const router = new Ururouter([
                 {
                     name: 'auctions',
                     path: '/auctions?type',
@@ -377,7 +377,7 @@ describe('router42', () => {
         });
 
         it('should catch unknown error', async () => {
-            const router = new Router42([
+            const router = new Ururouter([
                 { name: 'index', path: '/' },
                 {
                     name: 'test',
@@ -449,7 +449,7 @@ describe('router42', () => {
                 },
             ];
 
-            const router = new Router42([
+            const router = new Ururouter([
                 { name: 'en', path: '/', children: mainNodes, onEnter: langEnter },
                 { name: 'ru', path: '/ru', children: mainNodes, onEnter: langEnter },
                 { name: 'ko', path: '/ko', children: mainNodes, onEnter: langEnter },
@@ -479,7 +479,7 @@ describe('router42', () => {
                 },
             ];
 
-            const router = new Router42([
+            const router = new Ururouter([
                 { name: 'en', path: '/', children: mainNodes, ignoreReplaceOpt: true, onEnter: langEnter },
                 { name: 'ru', path: '/ru', children: mainNodes, ignoreReplaceOpt: true, onEnter: langEnter },
                 { name: 'ko', path: '/ko', children: mainNodes, ignoreReplaceOpt: true, onEnter: langEnter },
@@ -519,7 +519,7 @@ describe('router42', () => {
                 },
             ];
 
-            const router = new Router42(nodes);
+            const router = new Ururouter(nodes);
             let result = await router.start('/item/orders/top');
             result = await router.navigate('item.orders.top', {}, null, { replace: true });
             expect(result.payload.toActivate?.length).toBe(2);
@@ -528,7 +528,7 @@ describe('router42', () => {
         });
 
         it('should throw if route was not found and no fallbacks were defined', async () => {
-            const router = new Router42([
+            const router = new Ururouter([
                 { name: 'index', path: '/' },
                 { name: 'one', path: '/one' },
                 { name: 'two', path: '/two' },
@@ -744,7 +744,7 @@ describe('router42', () => {
             // First history repolace call, router start.
             //
             // State
-            expect(historyReplaceSpy.mock.calls[0][0]).toMatchObject({ name: 'en.index', params: {}, path: '/', anchor: 'test' });
+            expect(historyReplaceSpy.mock.calls[0][0]).toMatchObject({ name: 'en.index', params: {}, path: '/#test', anchor: 'test' });
             // Title
             expect(historyReplaceSpy.mock.calls[0][1]).toBe('');
             // Path
@@ -757,7 +757,7 @@ describe('router42', () => {
             expect(historyPushSpy.mock.calls[0][0]).toMatchObject({
                 name: 'en.profile.index',
                 params: { name: 'KycKyc' },
-                path: '/profile/KycKyc/',
+                path: '/profile/KycKyc/#test-2',
                 anchor: 'test-2',
             });
 
@@ -781,7 +781,13 @@ describe('router42', () => {
 
             const router = createRouter();
             let result = await router.start();
-            expect(result.payload.toState).toMatchObject({ name: 'en.profile.index', path: '/profile/kyckyc/', anchor: 'anchor', params: { kek: 'w' } });
+            expect(result.payload.toState).toMatchObject({
+                name: 'en.profile.index',
+                path: '/profile/kyckyc/?kek=w#anchor',
+                anchor: 'anchor',
+                params: { kek: 'w' },
+            });
+
             windowSpy.mockRestore();
         });
 
@@ -799,7 +805,7 @@ describe('router42', () => {
                 setTimeout(() => {
                     expect(router.state!.name).toBe('en.profile.auctions');
                     expect(router.state!.params).toEqual({ name: 'kyckyc' });
-                    expect(router.state!.path).toBe('/profile/kyckyc/auctions');
+                    expect(router.state!.path).toBe('/profile/kyckyc/auctions#test');
                     expect(router.state!.anchor).toBe('test');
                     fulfill();
                 }, 200);
@@ -939,7 +945,7 @@ const createRouter = (options: Partial<Options> = {}) => {
         { name: 'notFound', path: '/404' },
     ];
 
-    return new Router42(
+    return new Ururouter(
         {
             children: [
                 { name: 'en', path: '/', children: mainNodes },

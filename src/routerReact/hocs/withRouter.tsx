@@ -1,10 +1,10 @@
 import React, { forwardRef, Ref } from 'react';
 import type { Node } from '../../router/node';
-import type { Router42 } from '../../router/router';
+import type { Ururouter } from '../../router/router';
 import { useRouter } from '../hooks/useRouter';
 
 export interface RouterProps {
-    router: Router42<any, Node<any>> | null;
+    router: Ururouter<any, Node<any>> | null;
 }
 
 export const withRouter = <Props extends RouterProps>(Component: React.ComponentType<Props>) => {
